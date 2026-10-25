@@ -1,0 +1,22 @@
+# Backend (Python). Scoped to backend/ so it never changes how frontend/ files are tracked;
+# frontend/ has its own .gitignore owned by the frontend team.
+
+# Local secrets: keep backend/.env local. backend/.env.example (placeholders only) is committed.
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Virtual environment and caches
+backend/.venv/
+backend/**/__pycache__/
+backend/**/*.py[cod]
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/.coverage
+backend/.coverage.*
+backend/htmlcov/
+backend/coverage.xml
+backend/*.egg-info/
+backend/build/
+backend/dist/

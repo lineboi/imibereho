@@ -1,0 +1,199 @@
+"""Methodology v0.1 calculations: pure functions, no database or framework imports.
+
+Formulas BR-01 to BR-14 and BR-16 (backend-requirements §2). Rounding follows the accepted
+[PD] Q-17 defaults (implementation plan §6): money is whole RWF rounded half up in integer
+arithmetic; runway is quantised to 0.1 and ratios to 0.0001, both half up. BR-15 (daily total)
+is computed by the frontend because expenses never leave the device (Q-02).
+"""
+
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Final
+
+ONE_DECIMAL: Final = Decimal("0.1")
+FOUR_DECIMALS: Final = Decimal("0.0001")
+WEIGHT_TOTAL: Final = Decimal("1.00")
+
+
+def _require_non_negative(**values: int) -> None:
+    for name, value in values.items():
+        if value < 0:
+            raise ValueError(f"{name} must be >= 0")
+
+
+def monthly_balance(income: int, essentials: int, support: int = 0) -> int:
+    """BR-01: income + support − essentials (may be negative)."""
+    return income + support - essentials
+
+
+def shocked_income(income: int, reduction_pct: int) -> int:
+    """BR-02: income × (1 − pct/100), whole RWF rounded half up, in integer arithmetic.
+
+    SQL uses the identical expression with BIGINT operands (see `deficit_predicate_sql`).
+    """
+    _require_non_negative(income=income)
+    if not 0 <= reduction_pct <= 100:
+        raise ValueError("reduction_pct must be between 0 and 100")
+    return (income * (100 - reduction_pct) + 50) // 100
+
+
+def monthly_gap(essentials: int, shocked: int, support: int = 0) -> int:
+    """BR-03: max(0, essentials − (shocked income + support))."""
+    return max(0, essentials - (shocked + support))
+
+
+@dataclass(frozen=True, slots=True)
+class Drawdown:
+    used: int
+    remaining: int
+    exhausted: bool
+
+
+def savings_drawdown(savings: int, gap: int, months: int) -> Drawdown:
+    """BR-04 / BR-05: savings used is capped at savings, so the remainder is never negative."""
+    _require_non_negative(savings=savings, gap=gap, months=months)
+    needed = gap * months
+    used = min(savings, needed)
+    return Drawdown(used=used, remaining=savings - used, exhausted=needed > savings)
+
+
+def _quantise(value: Decimal, step: Decimal) -> Decimal:
+    return value.quantize(step, rounding=ROUND_HALF_UP)
+
+
+def runway_months(savings: int, gap: int) -> Decimal | None:
+    """BR-06: savings ÷ gap to 1 dp half up; `None` when there is no gap ([PD] Q-17)."""
+    _require_non_negative(savings=savings, gap=gap)
+    if gap == 0:
+        return None
+    return _quantise(Decimal(savings) / Decimal(gap), ONE_DECIMAL)
+
+
+def savings_after_horizon(savings: int, net_balance: int, months: int) -> int:
+    """BR-07 as written: savings + months × net balance. May be negative (contract §5)."""
+    return savings + months * net_balance
+
+
+def direct_transfer_budget(support: int, households: int, months: int) -> int:
+    """BR-08: support per month × eligible households × months."""
+    _require_non_negative(support=support, households=households, months=months)
+    return support * households * months
+
+
+def check_weights(weights: Sequence[Decimal]) -> None:
+    """BR-16: the vulnerability weights must sum to exactly 1.00."""
+    if sum(weights, Decimal(0)) != WEIGHT_TOTAL:
+        raise ValueError("vulnerability weights must sum to 1.00")
+
+
+def vulnerability_score(components: Sequence[int], weights: Sequence[Decimal]) -> Decimal:
+    """BR-09: Σ weight × component, with inputs 0–100 and weights checked by BR-16."""
+    if len(components) != len(weights):
+        raise ValueError("components and weights must have the same length")
+    if any(not 0 <= value <= 100 for value in components):
+        raise ValueError("components must be between 0 and 100")
+    check_weights(weights)
+    return sum(
+        (weight * value for weight, value in zip(weights, components, strict=True)), Decimal(0)
+    )
+
+
+def integer_score(score: Decimal) -> int:
+    """Scores are returned as integers, rounded half up ([PD] Q-17)."""
+    return int(score.quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+@dataclass(frozen=True, slots=True)
+class Band:
+    key: str
+    min_score: int
+    max_score: int
+
+
+def vulnerability_band(score: int, bands: Sequence[Band]) -> str:
+    """BR-10: the band whose min ≤ score ≤ max."""
+    for band in bands:
+        if band.min_score <= score <= band.max_score:
+            return band.key
+    raise ValueError(f"no band covers score {score}")
+
+
+def check_bands_cover(bands: Sequence[Band], low: int = 0, high: int = 100) -> None:
+    """The bands must cover low–high exactly, in order, with no gaps or overlaps."""
+    expected = low
+    for band in sorted(bands, key=lambda b: b.min_score):
+        if band.min_score != expected or band.max_score < band.min_score:
+            raise ValueError("bands must cover the score range without gaps or overlaps")
+        expected = band.max_score + 1
+    if expected != high + 1:
+        raise ValueError("bands must cover the score range without gaps or overlaps")
+
+
+def ratio(numerator: int, denominator: int) -> Decimal | None:
+    """BR-11 / BR-12: a fraction rounded half up to 4 places; `None` for a zero denominator."""
+    if denominator == 0:
+        return None
+    return _quantise(Decimal(numerator) / Decimal(denominator), FOUR_DECIMALS)
+
+
+def swap_difference(price_from: int, price_to: int) -> int:
+    """BR-14: price A − price B."""
+    return price_from - price_to
+
+
+def is_in_deficit(income: int, essentials: int, reduction_pct: int) -> bool:
+    """BR-03 / BR-12 helper: a household has a gap after the shock."""
+    return monthly_gap(essentials, shocked_income(income, reduction_pct)) > 0
+
+
+# The same predicate in SQL, for the BR-12 count. PostgreSQL integer division truncates, which
+# equals floor for non-negative operands, matching Python's `//`.
+DEFICIT_PREDICATE_SQL: Final = (
+    "monthly_essentials > (monthly_income::bigint * (100 - :pct) + 50) / 100"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ComparisonLine:
+    category_code: str
+    planned: int
+    reference: int
+    difference: int
+
+
+@dataclass(frozen=True, slots=True)
+class BudgetComparison:
+    lines: tuple[ComparisonLine, ...]
+    planned_total: int
+    reference_total: int
+    largest_above: ComparisonLine | None
+    largest_below: ComparisonLine | None
+
+
+def budget_comparison(
+    category_order: Sequence[str], plan: Mapping[str, int], reference: Mapping[str, int]
+) -> BudgetComparison:
+    """BR-13: plan − reference per category, in category order.
+
+    Largest above / below are chosen by absolute difference; ties go to the earlier category
+    ([PD] Q-09). A category with no difference is neither above nor below.
+    """
+    lines = tuple(
+        ComparisonLine(code, plan[code], reference[code], plan[code] - reference[code])
+        for code in category_order
+    )
+    above: ComparisonLine | None = None
+    below: ComparisonLine | None = None
+    for line in lines:
+        if line.difference > 0 and (above is None or line.difference > above.difference):
+            above = line
+        if line.difference < 0 and (below is None or line.difference < below.difference):
+            below = line
+    return BudgetComparison(
+        lines=lines,
+        planned_total=sum(line.planned for line in lines),
+        reference_total=sum(line.reference for line in lines),
+        largest_above=above,
+        largest_below=below,
+    )
