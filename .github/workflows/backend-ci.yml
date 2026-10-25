@@ -1,0 +1,114 @@
+# Backend CI (implementation plan A4): lint, types, guarded migrations, seed repeatability, tests.
+# Runs only for backend changes. Uses GitHub's hosted PostgreSQL 16 service (provisional, plan
+# §2.11); no Docker files are added to the repository and none is needed on developer machines.
+name: backend-ci
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # Throwaway password for this job's ephemeral container only, reachable only from the
+          # runner and destroyed at job end. Never a development, test or production credential
+          # (plan A4). The repo admin may move it to a secret; the tests are unaffected.
+          POSTGRES_PASSWORD: ci-throwaway-postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      ENVIRONMENT: ci
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: ci-throwaway-postgres
+      # DATABASE_URL is deliberately unset: nothing in CI can reach a dev or production database.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install Python 3.12 and locked dependencies
+        run: |
+          uv python install 3.12
+          uv sync --frozen
+
+      - name: Create the application role, databases and a temporary superuser
+        run: |
+          APP_PASSWORD="$(openssl rand -hex 32)"
+          ALT_PASSWORD="$(openssl rand -hex 32)"
+          echo "::add-mask::${APP_PASSWORD}"
+          echo "::add-mask::${ALT_PASSWORD}"
+          psql -v ON_ERROR_STOP=1 -c "CREATE ROLE imibereho LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '${APP_PASSWORD}'"
+          psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE imibereho_test OWNER imibereho"
+          psql -v ON_ERROR_STOP=1 -c "CREATE DATABASE imibereho_migrations OWNER imibereho"
+          psql -v ON_ERROR_STOP=1 -c "CREATE ROLE imibereho_ci_superuser LOGIN SUPERUSER PASSWORD '${ALT_PASSWORD}'"
+          {
+            echo "TEST_DATABASE_URL=postgresql+psycopg://imibereho:${APP_PASSWORD}@localhost:5432/imibereho_test"
+            echo "MIGRATIONS_DATABASE_URL=postgresql+psycopg://imibereho:${APP_PASSWORD}@localhost:5432/imibereho_migrations"
+            echo "SUPERUSER_POSTGRES_DATABASE_URL=postgresql+psycopg://postgres:ci-throwaway-postgres@localhost:5432/imibereho_test"
+            echo "SUPERUSER_ALT_DATABASE_URL=postgresql+psycopg://imibereho_ci_superuser:${ALT_PASSWORD}@localhost:5432/imibereho_test"
+          } >> "$GITHUB_ENV"
+          psql -c "SELECT version()"   # plan §2.11 evidence: the PostgreSQL 16 service version
+
+      - name: Lint and format
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Types (strict)
+        run: uv run mypy app tests alembic scripts
+
+      - name: Migration round trip (guarded, imibereho_migrations only)
+        run: |
+          uv run python -m app.db.migrate --target migrations upgrade head
+          uv run python -m app.db.migrate --target migrations downgrade base
+          uv run python -m app.db.migrate --target migrations upgrade head
+          uv run python -m app.db.migrate --target migrations check
+
+      - name: Seed repeatability
+        run: |
+          uv run python -m app.db.migrate --target test upgrade head
+          uv run python -m app.db.seed --target test
+          uv run python -m app.db.seed --target test | tee second-run.txt
+          if grep -q "applied" second-run.txt; then echo "second seed run was not a no-op"; exit 1; fi
+          uv run python -m app.db.seed --target test --check
+
+      - name: Tests with coverage
+        run: uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=85
+
+      - name: Drop the temporary superuser
+        if: always()
+        run: psql -c "DROP ROLE IF EXISTS imibereho_ci_superuser" || true
