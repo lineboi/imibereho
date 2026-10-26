@@ -6,6 +6,7 @@ from app.api.v1.endpoints import (
     benchmarks,
     budget,
     dashboard,
+    nisr,
     policy_scenarios,
     seasonal_swaps,
     shocks,
@@ -21,5 +22,6 @@ for module in (
     vulnerability,
     policy_scenarios,
     dashboard,
+    nisr,
 ):
     router.include_router(module.router)

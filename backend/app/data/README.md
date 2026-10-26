@@ -1,6 +1,10 @@
-# Seed data (methodology v0.1)
+# Seed data
 
-Everything here is **illustrative**. Every API response that uses it carries
+**Official published statistics:** `finscope_2024.py` holds values transcribed from the FinScope
+Rwanda 2024 report (Access to Finance Rwanda), each with its page and figure. It is served only by
+`/api/v1/nisr/*` with `isIllustrative: false`. See `backend/docs/api/nisr-financial-inclusion.md`.
+
+**Illustrative (methodology v0.1):** every other module here. Every API response that uses it carries
 `meta.isIllustrative: true`. None of it is official statistics or citizen data.
 
 | Module | Datasets | Source |
@@ -8,6 +12,7 @@ Everything here is **illustrative**. Every API response that uses it carries
 | `reference.py` | `methodology`, `districts`, `expense_categories`, `reference_household`, `budget_benchmarks`, `dashboard_dimensions` | Figma design (node IDs cited in the module) and contract v0.2 rev 2 |
 | `seasonal.py` | `seasonal` | Contract §4 text, citing `2:6698` and `2:6714` |
 | `vulnerability.py` | `vulnerability` | Weights, bands and all 30 scores from the design (`2:7355`, `2:7061`, `2:6965`); Gasabo's components from `2:7097`. **[SYN]** the other 29 districts' components |
+| `finscope_2024.py` | `finscope_2024` | **Official published statistics**: FinScope Rwanda 2024 report, pp. 25, 27, 31, 69 (not illustrative) |
 | `synthetic_households.py` | `synthetic_households` | **[SYN]** 3,000 invented households; only the totals come from the design (`2:6793`, `2:6864`, `2:6805`) |
 
 `registry.py` defines datasets and the canonical SHA-256 content hash that the seed framework

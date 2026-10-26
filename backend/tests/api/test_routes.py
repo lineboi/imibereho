@@ -30,11 +30,21 @@ CONTRACT_ENDPOINTS: Final = frozenset(
         ("GET", "/api/v1/demo-household"),
     }
 )
+# Endpoints added beyond contract v0.2 at the project owner's request (2026-10-26): official
+# published statistics. Proposed for contract v0.3 (backend/README.md); not yet signed off.
+EXTENSION_ENDPOINTS: Final = frozenset(
+    {
+        ("GET", "/api/v1/nisr/sources"),
+        ("GET", "/api/v1/nisr/financial-inclusion/national"),
+        ("GET", "/api/v1/nisr/financial-inclusion/districts"),
+    }
+)
 # What this build ships. Optional endpoints not built: /methodology, /demo-household.
-IMPLEMENTED_ENDPOINTS: Final = CONTRACT_ENDPOINTS - {
+IMPLEMENTED_CONTRACT_ENDPOINTS: Final = CONTRACT_ENDPOINTS - {
     ("GET", "/api/v1/methodology"),
     ("GET", "/api/v1/demo-household"),
 }
+IMPLEMENTED_ENDPOINTS: Final = IMPLEMENTED_CONTRACT_ENDPOINTS | EXTENSION_ENDPOINTS
 DOC_PATHS: Final = {"/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"}
 
 
@@ -52,8 +62,10 @@ def test_routes_equal_the_implemented_endpoints(stub_app: FastAPI) -> None:
     assert app_endpoints(stub_app) == IMPLEMENTED_ENDPOINTS
 
 
-def test_every_shipped_route_is_in_the_contract() -> None:
-    assert IMPLEMENTED_ENDPOINTS <= CONTRACT_ENDPOINTS
+def test_every_shipped_route_is_in_the_contract_or_a_declared_extension() -> None:
+    assert IMPLEMENTED_CONTRACT_ENDPOINTS <= CONTRACT_ENDPOINTS
+    assert not EXTENSION_ENDPOINTS & CONTRACT_ENDPOINTS
+    assert IMPLEMENTED_ENDPOINTS == IMPLEMENTED_CONTRACT_ENDPOINTS | EXTENSION_ENDPOINTS
 
 
 def test_data_routes_carry_the_v1_prefix_exactly_once(stub_app: FastAPI) -> None:
