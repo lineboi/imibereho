@@ -6,7 +6,9 @@
 - A dataset whose stored hash equals its code hash is skipped, so a rerun with nothing changed
   commits nothing.
 - Version-scoped tables: rows for the current methodology version are deleted (children first),
-  then the full set is inserted. Global tables: upsert, then delete rows absent from the set.
+  then the full set is inserted. Global tables: upsert, then delete rows absent from the set
+  (only within the dataset's partition, when the table is shared by several datasets; rows that
+  no registered dataset owns are deleted too, children first, and `--check` reports them).
   A delete blocked by a foreign key aborts the whole run.
 - `seed_state` is updated in the same transaction.
 - `--check` recomputes each hash from the table contents (not from `seed_state`).
@@ -18,14 +20,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final, Literal
 
-from sqlalchemy import ColumnElement, Table, delete, select, text, tuple_
+from sqlalchemy import ColumnElement, Table, delete, func, select, text, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.core.config import InvalidSettingsError, MissingSettingError, Target, get_settings
 from app.core.constants import METHODOLOGY_VERSION
 from app.data import DATASETS
-from app.data.registry import Dataset, TableRows, content_hash
+from app.data.registry import Dataset, SharedTable, TableRows, content_hash, shared_tables
 from app.db.guards import SEED_COMMAND, UnsafeDatabaseTargetError, describe_url
 from app.db.session import Database, create_guarded_engine
 from app.models import SeedState
@@ -43,9 +45,14 @@ class SeedOutcome:
 
 
 def _scope_filter(part: TableRows) -> tuple[ColumnElement[bool], ...]:
-    if part.scope_column is None:
-        return ()
-    return (part.table.c[part.scope_column] == METHODOLOGY_VERSION,)
+    """The rows this dataset owns: its methodology version and/or its partition."""
+    conditions: list[ColumnElement[bool]] = []
+    if part.scope_column is not None:
+        conditions.append(part.table.c[part.scope_column] == METHODOLOGY_VERSION)
+    if part.partition is not None:
+        column, value = part.partition
+        conditions.append(part.table.c[column] == value)
+    return tuple(conditions)
 
 
 def _primary_key(table: Table) -> list[str]:
@@ -66,10 +73,37 @@ def _sync_global_rows(session: Session, part: TableRows) -> None:
         session.execute(statement.on_conflict_do_update(index_elements=pk, set_=update_columns))
     keys = [tuple(row[name] for name in pk) for row in part.rows]
     pk_columns = [part.table.c[name] for name in pk]
-    stale = delete(part.table)
+    stale = delete(part.table).where(*_scope_filter(part))
     if keys:
         stale = stale.where(tuple_(*pk_columns).not_in(keys))
     session.execute(stale)
+
+
+def _shared(datasets: Sequence[Dataset]) -> dict[str, SharedTable]:
+    # Always include the whole registry: seeding a subset must never treat another
+    # registered dataset's partition as unowned.
+    return shared_tables({d.name: d for d in (*DATASETS, *datasets)}.values())
+
+
+def _unowned(shared: SharedTable) -> ColumnElement[bool]:
+    return shared.table.c[shared.column].not_in(list(shared.owned))
+
+
+def _delete_unowned_rows(
+    session: Session, datasets: Sequence[Dataset], pending: Sequence[Dataset]
+) -> None:
+    """When a pending dataset uses a shared table: drop rows no registered dataset owns, from
+    every shared table, children first.
+
+    This keeps the guarantee a global table gives (stale rows go) without crossing partitions:
+    an unowned row is never another dataset's data. Clearing all shared tables, not only the
+    pending dataset's, stops an unowned parent's child in another source's table from blocking
+    the delete. A delete blocked by any other foreign key aborts the whole run.
+    """
+    if not any(p.partition is not None for d in pending for p in d.tables):
+        return
+    for shared in reversed(_shared(datasets).values()):
+        session.execute(delete(shared.table).where(_unowned(shared)))
 
 
 def _insert(session: Session, dataset: Dataset) -> None:
@@ -112,6 +146,7 @@ def seed(database: Database, datasets: Sequence[Dataset] = DATASETS) -> list[See
         # delete fail, which aborts the whole run.
         for dataset in reversed(pending):
             _delete_version_rows(session, dataset)
+        _delete_unowned_rows(session, datasets, pending)
         for dataset in pending:
             _insert(session, dataset)
         outcomes = [SeedOutcome(d.name, "applied" if d in pending else "skipped") for d in datasets]
@@ -129,9 +164,18 @@ def table_hash(session: Session, dataset: Dataset) -> str:
 
 
 def check(database: Database, datasets: Sequence[Dataset] = DATASETS) -> list[str]:
-    """Return the names of datasets whose table contents do not match the code."""
+    """Return the names of datasets whose table contents do not match the code.
+
+    A row in a shared table that no registered dataset owns counts against every dataset that
+    uses that table (as it would have if the table were not partitioned).
+    """
     with database.read_only_session() as session:
-        return [d.name for d in datasets if table_hash(session, d) != d.content_hash]
+        mismatched = {d.name for d in datasets if table_hash(session, d) != d.content_hash}
+        for shared in _shared(datasets).values():
+            stray = select(func.count()).select_from(shared.table).where(_unowned(shared))
+            if session.scalar(stray):
+                mismatched.update(shared.owners)
+        return [d.name for d in datasets if d.name in mismatched]
 
 
 def main(argv: Sequence[str] | None = None) -> int:

@@ -30,13 +30,16 @@ CONTRACT_ENDPOINTS: Final = frozenset(
         ("GET", "/api/v1/demo-household"),
     }
 )
-# Endpoints added beyond contract v0.2 at the project owner's request (2026-10-26): official
-# published statistics. Proposed for contract v0.3 (backend/README.md); not yet signed off.
+# Endpoints added beyond contract v0.2 at the project owner's request: official published
+# statistics (FinScope 2026-10-26; EICV7 poverty and health insurance 2026-10-27). They are
+# contract v0.3 (contract §10), agreed by the frontend teammate on 2026-10-27.
 EXTENSION_ENDPOINTS: Final = frozenset(
     {
         ("GET", "/api/v1/nisr/sources"),
         ("GET", "/api/v1/nisr/financial-inclusion/national"),
         ("GET", "/api/v1/nisr/financial-inclusion/districts"),
+        ("GET", "/api/v1/nisr/poverty"),
+        ("GET", "/api/v1/nisr/health-insurance"),
     }
 )
 # What this build ships. Optional endpoints not built: /methodology, /demo-household.

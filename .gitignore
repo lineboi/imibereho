@@ -20,3 +20,6 @@ backend/coverage.xml
 backend/*.egg-info/
 backend/build/
 backend/dist/
+
+# Local official source documents (NISR PDF/workbook): kept on disk, never committed.
+/nisr/

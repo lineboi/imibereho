@@ -36,7 +36,8 @@ Stack: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (typed), Alembic, Postgre
 | `POST /api/v1/calculations/policy-scenario` | §5 | Stateless |
 | `GET /api/v1/dashboard/filters`, `GET /api/v1/dashboard/overview` | §5 | `geography=all` only ([PD] Q-14) |
 | `POST /api/v1/calculations/budget-comparison` | §6 (optional) | See open item below |
-| `GET /api/v1/nisr/sources`, `GET /api/v1/nisr/financial-inclusion/national`, `GET /api/v1/nisr/financial-inclusion/districts` | **Extension** (proposed v0.3) | Official FinScope 2024 statistics with provenance; `isIllustrative: false`. See [`docs/api/nisr-financial-inclusion.md`](docs/api/nisr-financial-inclusion.md) |
+| `GET /api/v1/nisr/sources`, `GET /api/v1/nisr/financial-inclusion/national`, `GET /api/v1/nisr/financial-inclusion/districts` | **v0.3** §10 (agreed 2026-10-27) | Official FinScope 2024 statistics with provenance; `isIllustrative: false`. See [`docs/api/nisr-financial-inclusion.md`](docs/api/nisr-financial-inclusion.md) |
+| `GET /api/v1/nisr/poverty`, `GET /api/v1/nisr/health-insurance` | **v0.3** §10 (agreed 2026-10-27) | Official NISR EICV7 2023/24 estimates (Tables A9.23, A3.7) with standard errors and 95% CIs; `isIllustrative: false`. Same guide |
 
 Not built: the optional `GET /api/v1/methodology` and `GET /api/v1/demo-household` (each has a
 frontend fallback, contract §6), rate limiting (optional O3), and per-district geography (O5, not
@@ -173,7 +174,9 @@ always run in CI ([`.github/workflows/backend-ci.yml`](../.github/workflows/back
 
 See the change report for the full list. These are the ones most relevant here:
 
-- **Contract sign-off:** contract v0.2 rev 2 still awaits frontend sign-off.
+- **Contract sign-off:** contract v0.2 rev 2 still awaits frontend sign-off. Contract v0.3 (the
+  official-statistics endpoints, contract §10) was agreed by the frontend teammate on
+  27 October 2026; that approval does not cover v0.2 rev 2.
 - **Budget comparison errors:** contract §6 doesn't name the error codes for a missing or
   duplicated category. This build uses `required` at `plan` for a missing category and
   `unknown_value` at `plan.<i>.categoryCode` for a duplicate. This needs confirmation.
