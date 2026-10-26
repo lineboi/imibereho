@@ -5,13 +5,16 @@ import { QuickStartForm } from './components/QuickStartForm';
 import { DesktopInsightCard } from './components/DesktopInsightCard';
 import { PayloadModal } from './components/PayloadModal';
 import { DailyTrackerPage } from './components/DailyTracker/DailyTrackerPage';
+import { DistrictAdvisorPage } from './components/DistrictAdvisor/DistrictAdvisorPage';
+import { ResilienceSimulatorPage } from './components/ResilienceSimulator/ResilienceSimulatorPage';
+import { SeasonalAgroSwapsPage } from './components/SeasonalAgroSwaps/SeasonalAgroSwapsPage';
 import { INITIAL_PROFILE, TRANSLATIONS } from './data/mockData';
 import type { HouseholdProfile, Language, AppPage, NavTab } from './types';
 import { Check, Sparkles } from 'lucide-react';
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<AppPage>('tracker');
-  const [activeTab, setActiveTab] = useState<NavTab>('tracker');
+  const [activeTab, setActiveTab] = useState<NavTab>('agro_swaps');
   const [language, setLanguage] = useState<Language>('EN');
   const [profile, setProfile] = useState<HouseholdProfile>(INITIAL_PROFILE);
   const [modalOpen, setModalOpen] = useState(false);
@@ -53,14 +56,42 @@ export function App() {
 
       {/* Conditionally Render Pages */}
       {currentPage === 'tracker' ? (
-        <DailyTrackerPage
-          language={language}
-          onNavigateHome={() => setCurrentPage('landing')}
-          district={profile.district}
-          householdSize={profile.householdSize}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-        />
+        activeTab === 'district_advisor' ? (
+          <DistrictAdvisorPage
+            language={language}
+            onNavigateHome={() => setCurrentPage('landing')}
+            defaultDistrict={profile.district}
+            defaultHouseholdSize={profile.householdSize}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+        ) : activeTab === 'resilience' ? (
+          <ResilienceSimulatorPage
+            language={language}
+            onNavigateHome={() => setCurrentPage('landing')}
+            district={profile.district}
+            householdSize={profile.householdSize}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+        ) : activeTab === 'agro_swaps' ? (
+          <SeasonalAgroSwapsPage
+            language={language}
+            onNavigateHome={() => setCurrentPage('landing')}
+            district={profile.district}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+        ) : (
+          <DailyTrackerPage
+            language={language}
+            onNavigateHome={() => setCurrentPage('landing')}
+            district={profile.district}
+            householdSize={profile.householdSize}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+        )
       ) : (
         /* Landing Page / Welcome Setup */
         <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-8 lg:py-12">
