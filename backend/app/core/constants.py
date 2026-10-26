@@ -25,6 +25,9 @@ DURATION_MIN: Final = 1
 DURATION_MAX: Final = 24
 LIST_LIMIT_MAX: Final = 30  # every list holds 30 items or fewer (contract §1)
 
+# Official published statistics (not illustrative): the FinScope Rwanda 2024 report.
+FINSCOPE_2024_SOURCE_ID: Final = "finscope-2024"
+
 # Contract §5 / [PD] Q-14: geography offers `all` only. Label from the design (`2:6774`).
 GEOGRAPHY_ALL: Final = "all"
 GEOGRAPHIES: Final = ((GEOGRAPHY_ALL, "All districts"),)

@@ -5,6 +5,11 @@ The server stores only approved synthetic reference data and operational seed st
 
 from app.models.benchmark import BudgetBenchmark
 from app.models.household_profile import ReferenceHousehold, SyntheticHousehold
+from app.models.official_statistics import (
+    FinancialAccessStrandDistrict,
+    FinancialInclusionIndicator,
+    StatisticalSource,
+)
 from app.models.reference_data import (
     District,
     ExpenseCategory,
@@ -22,6 +27,8 @@ __all__ = [
     "District",
     "DistrictVulnerability",
     "ExpenseCategory",
+    "FinancialAccessStrandDistrict",
+    "FinancialInclusionIndicator",
     "HouseholdGroup",
     "MethodologyVersion",
     "MonthlySeriesPoint",
@@ -30,6 +37,7 @@ __all__ = [
     "SeasonalSwap",
     "SeasonalTip",
     "SeedState",
+    "StatisticalSource",
     "SyntheticHousehold",
     "VulnerabilityBand",
     "VulnerabilityModel",

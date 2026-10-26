@@ -36,6 +36,7 @@ Stack: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (typed), Alembic, Postgre
 | `POST /api/v1/calculations/policy-scenario` | §5 | Stateless |
 | `GET /api/v1/dashboard/filters`, `GET /api/v1/dashboard/overview` | §5 | `geography=all` only ([PD] Q-14) |
 | `POST /api/v1/calculations/budget-comparison` | §6 (optional) | See open item below |
+| `GET /api/v1/nisr/sources`, `GET /api/v1/nisr/financial-inclusion/national`, `GET /api/v1/nisr/financial-inclusion/districts` | **Extension** (proposed v0.3) | Official FinScope 2024 statistics with provenance; `isIllustrative: false`. See [`docs/api/nisr-financial-inclusion.md`](docs/api/nisr-financial-inclusion.md) |
 
 Not built: the optional `GET /api/v1/methodology` and `GET /api/v1/demo-household` (each has a
 frontend fallback, contract §6), rate limiting (optional O3), and per-district geography (O5, not

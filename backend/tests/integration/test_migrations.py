@@ -108,13 +108,17 @@ def test_stepwise_downgrade_and_upgrade(
 ) -> None:
     migrate.run(migrations_settings, "migrations", "upgrade", "head")
     migrate.run(migrations_settings, "migrations", "downgrade", "-1")
+    assert revision(migrations_database) == "0006"
+    assert "statistical_sources" not in tables(migrations_database)
+    migrate.run(migrations_settings, "migrations", "downgrade", "-1")
     assert revision(migrations_database) == "0005"
-    assert check_constraint_names(migrations_database) != model_check_constraint_names()
+    doubled = {name for _, name in check_constraint_names(migrations_database)}
+    assert "ck_districts_ck_districts_code_slug" in doubled  # the names 0006 repairs
     migrate.run(migrations_settings, "migrations", "downgrade", "-1")
     assert revision(migrations_database) == "0004"
     assert "synthetic_households" not in tables(migrations_database)
     migrate.run(migrations_settings, "migrations", "upgrade", "head")
-    assert revision(migrations_database) == migrate.head_revision() == "0006"
+    assert revision(migrations_database) == migrate.head_revision() == "0007"
 
 
 def test_named_constraints_follow_the_convention(

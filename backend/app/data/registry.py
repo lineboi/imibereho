@@ -9,6 +9,7 @@ import hashlib
 import json
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from datetime import date, datetime
 from decimal import Decimal
 from functools import cached_property
 from typing import cast
@@ -59,6 +60,8 @@ def _canonical_value(value: object) -> object:
         return {"decimal": format(normalised, "f")}
     if value is None or isinstance(value, bool | int | str):
         return value
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return {"date": value.isoformat()}
     raise TypeError(f"unsupported seed value type {type(value).__name__}")
 
 

@@ -91,7 +91,7 @@ def test_bare_alembic_refuses_to_run() -> None:
 
 
 def test_head_revision_is_single_and_latest() -> None:
-    assert migrate.head_revision() == "0006"
+    assert migrate.head_revision() == "0007"
 
 
 @pytest.mark.parametrize("script", ["migrate.py", "seed.py"])
