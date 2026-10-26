@@ -2,13 +2,15 @@
 
 These responses carry published figures, so their envelope says `isIllustrative: false` and
 names the source(s). This differs from contract v0.2 §1.1 (which only knows illustrative data)
-and is recorded as a proposed v0.3 addition in backend/README.md.
+and is specified by contract v0.3 (§10, agreed 27 October 2026).
 """
 
 from datetime import date
 from typing import Literal
 
-from app.schemas.common import ApiModel
+from pydantic import Field
+
+from app.schemas.common import ApiModel, JsonDecimal
 
 DataStatus = Literal["available", "awaiting_validated_data"]
 
@@ -106,4 +108,75 @@ class DistrictFinancialInclusion(ApiModel):
     source: SourceOut | None
     categories: list[StrandCategory]
     items: list[DistrictAccessStrand]
+    meta: OfficialListMeta
+
+
+# --- Survey estimates with sampling uncertainty (EICV7) ---
+
+SurveyDimension = Literal["national", "area", "province", "sex", "quintile", "district"]
+
+
+class SurveyIndicator(ApiModel):
+    code: str = Field(examples=["poverty_headcount_rate"])
+    table_id: str = Field(description="Table number in the source report.", examples=["A9.23"])
+    label: str
+    definition: str
+    population: str = Field(description="Who the percentage is a share of (the denominator).")
+    unit: Literal["percent"]
+    survey_round: str = Field(examples=["2023/24"])
+    printed_decimals: int = Field(
+        description="Decimals the report prints for this table. Values below carry the "
+        "workbook's full precision; round to this many decimals to display them as published.",
+        examples=[2],
+    )
+    citation: Citation
+
+
+class SurveyEstimateOut(ApiModel):
+    """One published estimate. Uncertainty fields are null when the source publishes none."""
+
+    indicator_code: str
+    table_id: str
+    dimension: SurveyDimension
+    code: str = Field(
+        description="Stable group code: `rwanda`, `urban`, `city_of_kigali`, `female`, `q1`, or "
+        "the district code used by `GET /api/v1/districts`.",
+        examples=["rwanda"],
+    )
+    label: str = Field(description="Row label exactly as published.", examples=["Poverty Rate"])
+    district_code: str | None = Field(description="Set only when `dimension` is `district`.")
+    estimate_pct: JsonDecimal = Field(
+        description="Estimate on a 0-100 scale.", examples=[27.362976067289672]
+    )
+    standard_error_pct: JsonDecimal | None = Field(
+        description="Standard error, in percentage points.", examples=[0.49624639004466625]
+    )
+    ci_lower_pct: JsonDecimal | None = Field(
+        description="Lower bound of the published 95% confidence interval.",
+        examples=[26.389621090104246],
+    )
+    ci_upper_pct: JsonDecimal | None = Field(
+        description="Upper bound of the published 95% confidence interval.",
+        examples=[28.336331044475099],
+    )
+    cv_pct: JsonDecimal | None = Field(
+        description="Coefficient of variation, in percent of the estimate.",
+        examples=[1.8135687756489709],
+    )
+    design_effect: JsonDecimal | None = Field(
+        description="Design effect (no unit).", examples=[1.8650754691612403]
+    )
+    notes: str | None
+
+
+class SurveyIndicatorEstimates(ApiModel):
+    status: DataStatus
+    source: SourceOut | None
+    indicator: SurveyIndicator | None = Field(
+        description="Null only when no validated data is loaded."
+    )
+    dimensions: list[SurveyDimension] = Field(
+        description="The dimensions present in `items`, in published order."
+    )
+    items: list[SurveyEstimateOut]
     meta: OfficialListMeta

@@ -10,6 +10,7 @@ from app.models import (
     FinancialAccessStrandDistrict,
     FinancialInclusionIndicator,
     StatisticalSource,
+    SurveyEstimate,
 )
 
 
@@ -41,3 +42,16 @@ class OfficialStatisticsRepository:
             .order_by(District.name)
         ).all()
         return [(row, name) for row, name in rows]
+
+    def list_survey_estimates(
+        self, source_id: str, indicator_code: str
+    ) -> Sequence[SurveyEstimate]:
+        """One indicator's estimates, in the source table's row order."""
+        return self._session.scalars(
+            select(SurveyEstimate)
+            .where(
+                SurveyEstimate.source_id == source_id,
+                SurveyEstimate.indicator_code == indicator_code,
+            )
+            .order_by(SurveyEstimate.sort_order)
+        ).all()

@@ -33,6 +33,7 @@ APPROVED_TABLES: Final = frozenset(
         "statistical_sources",
         "financial_inclusion_indicators",
         "financial_access_strand_districts",
+        "survey_estimates",
     }
 )
 # Matched against whole `_`-separated tokens, so `footnote` or a district `name` do not match.
@@ -52,6 +53,7 @@ REVIEWED_NON_PERSONAL_COLUMNS: Final = frozenset(
         "statistical_sources.notes",
         "financial_inclusion_indicators.notes",
         "financial_access_strand_districts.notes",
+        "survey_estimates.notes",
     }
 )
 

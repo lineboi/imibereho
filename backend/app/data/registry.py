@@ -24,6 +24,10 @@ class TableRows:
     model: type[Base]
     scope_column: str | None
     rows: tuple[Mapping[str, object], ...]
+    # For a global table that several datasets share (e.g. one row per official source in
+    # `statistical_sources`): (column, value) limits this dataset's sync, stale-row delete and
+    # hash check to its own rows. It does not enter the content hash.
+    partition: tuple[str, object] | None = None
 
     @property
     def table(self) -> Table:
@@ -46,11 +50,63 @@ class Dataset:
             keys = {frozenset(row.keys()) for row in part.rows}
             if len(keys) > 1:
                 raise ValueError(f"{self.name}: rows for {part.table.name} have differing columns")
+            if part.partition is not None:
+                column, value = part.partition
+                # In the key, so an upsert can never take over another partition's row.
+                if column not in part.table.primary_key.columns:
+                    raise ValueError(
+                        f"{self.name}: partition column {part.table.name}.{column} is not in "
+                        "the primary key"
+                    )
+                if any(row[column] != value for row in part.rows):
+                    raise ValueError(
+                        f"{self.name}: a row for {part.table.name} is outside its partition"
+                    )
         return tables
 
     @cached_property
     def content_hash(self) -> str:
         return content_hash((part.table.name, part.rows) for part in self.tables)
+
+
+@dataclass(frozen=True, slots=True)
+class SharedTable:
+    """A table split between datasets by `column`; `owned` holds every claimed value."""
+
+    table: Table
+    column: str
+    owned: frozenset[object]
+    owners: tuple[str, ...]  # dataset names, in registry order
+
+
+def shared_tables(datasets: Iterable[Dataset]) -> dict[str, SharedTable]:
+    """Every partitioned table, in first-use order (parents first).
+
+    Raises ValueError if a table mixes partitioned and unpartitioned datasets, uses two
+    partition columns, or if two datasets claim the same partition value.
+    """
+    found: dict[str, tuple[Table, str, dict[object, str]]] = {}
+    unpartitioned: set[str] = set()
+    for dataset in datasets:
+        for part in dataset.tables:
+            name = part.table.name
+            if part.partition is None:
+                unpartitioned.add(name)
+                continue
+            column, value = part.partition
+            _, known_column, owners = found.setdefault(name, (part.table, column, {}))
+            if known_column != column:
+                raise ValueError(f"{name}: partitioned by both {known_column} and {column}")
+            owner = owners.setdefault(value, dataset.name)
+            if owner != dataset.name:
+                raise ValueError(f"{name}: {dataset.name} and {owner} both claim {value!r}")
+    mixed = sorted(unpartitioned & found.keys())
+    if mixed:
+        raise ValueError(f"tables both partitioned and not: {mixed}")
+    return {
+        name: SharedTable(table, column, frozenset(owners), tuple(dict.fromkeys(owners.values())))
+        for name, (table, column, owners) in found.items()
+    }
 
 
 def _canonical_value(value: object) -> object:

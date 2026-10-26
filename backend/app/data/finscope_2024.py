@@ -241,10 +241,13 @@ def _finscope_2024() -> tuple[TableRows, ...]:
         }
         for code, (banked, other, informal, excluded) in DISTRICTS.items()
     )
+    # Partitioned by source, so other official datasets can share these tables.
     return (
-        TableRows(StatisticalSource, None, (SOURCE,)),
-        TableRows(FinancialInclusionIndicator, None, national),
-        TableRows(FinancialAccessStrandDistrict, None, districts),
+        TableRows(StatisticalSource, None, (SOURCE,), partition=("id", SOURCE_ID)),
+        TableRows(FinancialInclusionIndicator, None, national, partition=("source_id", SOURCE_ID)),
+        TableRows(
+            FinancialAccessStrandDistrict, None, districts, partition=("source_id", SOURCE_ID)
+        ),
     )
 
 

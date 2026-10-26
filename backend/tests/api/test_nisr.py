@@ -39,9 +39,9 @@ def assert_official_meta(meta: dict[str, Any], count: int, source_ids: list[str]
 
 def test_sources_list_full_provenance(db_client: TestClient) -> None:
     data = raw_json(db_client.get(f"{BASE}/sources"))
-    assert_official_meta(data["meta"], 1, ["finscope-2024"])
-    source = data["items"][0]
-    assert source["id"] == "finscope-2024"
+    # Sorted by id; EICV7 has its own provenance tests (tests/api/test_nisr_eicv7.py).
+    assert_official_meta(data["meta"], 2, ["eicv7-2023-2024", "finscope-2024"])
+    source = next(item for item in data["items"] if item["id"] == "finscope-2024")
     assert source["publisher"] == "Access to Finance Rwanda (AFR)"
     assert source["citation"] == "Access to Finance Rwanda, FinScope 2024 report, June 2024"
     assert source["publicationDate"] == "2024-06"

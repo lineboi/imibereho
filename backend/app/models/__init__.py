@@ -9,6 +9,7 @@ from app.models.official_statistics import (
     FinancialAccessStrandDistrict,
     FinancialInclusionIndicator,
     StatisticalSource,
+    SurveyEstimate,
 )
 from app.models.reference_data import (
     District,
@@ -38,6 +39,7 @@ __all__ = [
     "SeasonalTip",
     "SeedState",
     "StatisticalSource",
+    "SurveyEstimate",
     "SyntheticHousehold",
     "VulnerabilityBand",
     "VulnerabilityModel",

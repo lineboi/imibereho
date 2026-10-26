@@ -1,7 +1,8 @@
-# API Contract — Imibereho (contract v0.2)
+# API Contract — Imibereho (contract v0.2 rev 2, with the v0.3 official-statistics extension)
 
 > **This is the single authoritative frontend–backend API contract.** If any other document (`backend-requirements.md`, `IMPLEMENTATION_PLAN.md`, the project document) disagrees with it, this file wins and the other document is corrected.
 > **Status: v0.2, backend proposal, awaiting frontend sign-off.** Nothing here is implemented yet. Once frontend and backend agree, the status becomes "agreed". After that, changes need a new contract version and a note in §9.
+> **Status of v0.3 (§10, official published statistics): agreed.** v0.3 was agreed by the frontend teammate on 27 October 2026. The approval covers contract v0.3 only; it does not cover v0.2 rev 2, whose status above is unchanged.
 > **Basis:** the Figma screens ([design-inventory.md](../figma/design-inventory.md)), [backend-requirements.md](./backend-requirements.md), and the resolutions of Q-01, Q-02, Q-04 and Q-15 in [open-questions.md](../requirements/open-questions.md).
 >
 > **Evidence labels** (same as the other docs, plus one):
@@ -16,7 +17,7 @@ Three version numbers exist. They are independent.
 | Version | Value | Changes when |
 |---|---|---|
 | API path | `/api/v1` | A breaking change after the demo |
-| Contract (this document) | `0.2` | Any change to a field, an endpoint or the error behaviour. Mirrored in OpenAPI `info.version` = `0.2.0` |
+| Contract (this document) | `0.2` (rev 2, §1–§8; not yet agreed) and `0.3` (§10; agreed 2026-10-27) | Any change to a field, an endpoint or the error behaviour. Mirrored in OpenAPI `info.version` = `0.2.0`; the build still reports `0.2.0` after v0.3 was agreed (open item in §10) |
 | Methodology | `"0.1"` | Calculation rules or seeded data change. Returned in `meta.methodologyVersion` ([E] "CONCEPT METHOD · v0.1", `2:7333`) |
 
 ## 1. Conventions
@@ -448,3 +449,30 @@ Rate limiting (429) is also optional. Every other code in §1.3 applies to all e
 | 0.1 | 2026-10-24 | First proposal, drafted from the Figma design. |
 | 0.2 rev 2 | 2026-10-24 | Pre-sign-off corrections; v0.2 has not yet been agreed, so the version number is kept. Changes: `/health` is the platform health check; `/ready` gains a `checks` object and an explicit pre-seed rule (§2). Malformed-JSON body fixed exactly (§1.3). Validation runs before lookup. The 404 `district-not-found` rule is narrowed to the `district` and `districtCode` parameters; `geography` is always 422. Query-integer pattern `^[0-9]+$` and body booleans rejected (§1.2). Every numeric field is a JSON number (§1). `/dashboard/filters` periods use `code` instead of `id`. The `period` and `householdGroup` rules are spelled out for both vulnerability endpoints. |
 | 0.2 | 2026-10-24 | Q-01, Q-02, Q-04 and Q-15 resolved; the Option B and auth variants removed. `meta` added to every data response, including `/dashboard/filters` and `/methodology`. Error format reconciled: `unknown_field` added; unknown district → 404 (narrowed in rev 2 to the `district` and `districtCode` parameters); unknown filter or enum value → 422 `unknown_value`; `benchmark-not-available` and `not-ready` added. Number parsing rules added (§1.2). Household-shock gains `savingsExhausted`, and `runwayMonths` is 1 dp or `null`. Policy-scenario gains `baselineUsed`; `savingsAfterHorizon` stays BR-07 as written and can be negative. Benchmarks cover household size 4 only. Scores are integers with `band1`–`band4` keys. `/dashboard/filters` offers defaults only; per-district geography is optional and needs a decision. `/methodology` returns structured data only and is optional. `budget-comparison` and `demo-household` added as optional. `/health` and `/ready` added at the root. `X-Request-ID`, CORS and an English-only response language added. |
+| 0.3 | 2026-10-27 | **Agreed** by the frontend teammate on 27 October 2026. The approval covers v0.3 only; v0.2 rev 2 is not covered and still awaits sign-off. Adds §10: the official published statistics endpoints `GET /api/v1/nisr/sources`, `/nisr/financial-inclusion/national`, `/nisr/financial-inclusion/districts`, `/nisr/poverty` and `/nisr/health-insurance`, with the official-statistics `meta` (`isIllustrative: false`, `dataKind`, `sourceIds`); `printedDecimals` for display rounding; NISR attribution for EICV7 and AFR attribution for FinScope; EICV7 and FinScope kept as separate datasets in charts and filters. |
+
+## 10. Official published statistics (contract v0.3)
+
+**Status: agreed.** Contract v0.3 was agreed by the frontend teammate on 27 October 2026. The approval covers contract v0.3 only; it does not cover v0.2 rev 2 (§1–§8 remain a proposal awaiting sign-off).
+
+**Approved scope.** The five endpoints proposed for v0.3 in `backend/README.md`, with the field-level specification in [`backend/docs/api/nisr-financial-inclusion.md`](../../backend/docs/api/nisr-financial-inclusion.md), which is part of this contract for these endpoints:
+
+| Endpoint | Source | Publisher to credit |
+|---|---|---|
+| `GET /api/v1/nisr/sources` | both sources, each with full provenance | per item (`publisher`) |
+| `GET /api/v1/nisr/financial-inclusion/national` | FinScope Rwanda 2024 | Access to Finance Rwanda (AFR) |
+| `GET /api/v1/nisr/financial-inclusion/districts` | FinScope Rwanda 2024 | Access to Finance Rwanda (AFR) |
+| `GET /api/v1/nisr/poverty` | EICV7 2023/24, Table A9.23 | National Institute of Statistics of Rwanda (NISR) |
+| `GET /api/v1/nisr/health-insurance` | EICV7 2023/24, Table A3.7 | National Institute of Statistics of Rwanda (NISR) |
+
+The approval explicitly includes:
+- **`printedDecimals`** (EICV7 `indicator.printedDecimals`, currently 2): values carry full source precision, and the frontend rounds to this many decimals for display.
+- **Attribution:** EICV7 figures are credited to NISR; FinScope figures are credited to AFR (NISR is FinScope's sponsor and distributor, not its publisher).
+- **Separation:** EICV7 and FinScope are separate datasets. They are not combined in one chart series or filter; each keeps its own source label.
+
+The endpoints follow §1 conventions (`/api/v1` prefix, problem+json errors, `X-Request-ID`), except that their `meta` is the official-statistics envelope (`isIllustrative: false`, `dataKind: "official_published_statistics"`, `sourceIds`, `count`) instead of §1.1's illustrative one.
+
+**Not covered by this approval (open):**
+- Contract v0.2 rev 2 (§1–§8) still awaits frontend sign-off.
+- §0 says the contract version is mirrored in OpenAPI `info.version`; the build still reports `0.2.0`. Whether it should report `0.3.0` while v0.2 rev 2 is unagreed is undecided.
+- The FinScope endpoints sit under the `/nisr/` path although AFR is FinScope's publisher; the response's `source.publisher` is authoritative for attribution.

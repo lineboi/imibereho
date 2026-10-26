@@ -1,13 +1,25 @@
 """Official published statistics: their source documents and the values transcribed from them.
 
 Unlike the illustrative v0.1 datasets, these rows are published figures from an identified
-document. Every row cites its page and table/figure. They are aggregates for the adult
-population, never individual or household records (Q-02 still holds).
+document. Every row cites its page and table/figure. They are population aggregates, never
+individual or household records (Q-02 still holds).
 """
 
 from datetime import date
+from decimal import Decimal
 
-from sqlalchemy import CHAR, CheckConstraint, Date, ForeignKey, Integer, SmallInteger, String, Text
+from sqlalchemy import (
+    CHAR,
+    CheckConstraint,
+    Date,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    SmallInteger,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -104,3 +116,69 @@ class FinancialAccessStrandDistrict(Base):
     page: Mapped[int] = mapped_column(SmallInteger)
     table_or_figure: Mapped[str] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
+
+
+class SurveyEstimate(Base):
+    """One published survey estimate for one population group, with its sampling uncertainty.
+
+    Values are stored as unconstrained NUMERIC, so the source's digits are kept exactly (no
+    float, no fixed scale). Percentages and the standard error and CI bounds are on a 0-100
+    scale; `cv_pct` is the coefficient of variation in percent; `design_effect` has no unit.
+    A NULL uncertainty field means the source publishes none for that record.
+    """
+
+    __tablename__ = "survey_estimates"
+    __table_args__ = (
+        CheckConstraint("table_id ~ '^[A-Z]?[0-9]+[.][0-9]+$'", name="table_id_format"),
+        CheckConstraint("indicator_code ~ '^[a-z0-9_]+$'", name="indicator_code_slug"),
+        CheckConstraint("category_code ~ '^[a-z0-9_]+$'", name="category_code_slug"),
+        CheckConstraint(
+            "dimension IN ('national', 'area', 'province', 'sex', 'quintile', 'district')",
+            name="dimension_known",
+        ),
+        CheckConstraint(
+            "(dimension = 'district') = (district_code IS NOT NULL)", name="district_dimension"
+        ),
+        CheckConstraint("unit = 'percent'", name="unit_known"),
+        CheckConstraint("estimate_pct BETWEEN 0 AND 100", name="estimate_pct_range"),
+        CheckConstraint("(ci_lower_pct IS NULL) = (ci_upper_pct IS NULL)", name="ci_complete"),
+        CheckConstraint(
+            "ci_lower_pct IS NULL OR estimate_pct BETWEEN ci_lower_pct AND ci_upper_pct",
+            name="ci_contains_estimate",
+        ),
+        CheckConstraint(
+            "(standard_error_pct IS NULL OR standard_error_pct >= 0)"
+            " AND (cv_pct IS NULL OR cv_pct >= 0)"
+            " AND (design_effect IS NULL OR design_effect >= 0)",
+            name="uncertainty_nonnegative",
+        ),
+        CheckConstraint("printed_decimals BETWEEN 0 AND 6", name="printed_decimals_range"),
+        CheckConstraint("page > 0", name="page_positive"),
+        Index("ix_survey_estimates_source_id_indicator_code_sort_order",
+              "source_id", "indicator_code", "sort_order"),
+        Index("ix_survey_estimates_district_code", "district_code"),
+    )  # fmt: skip
+
+    source_id: Mapped[str] = mapped_column(ForeignKey("statistical_sources.id"), primary_key=True)
+    table_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    indicator_code: Mapped[str] = mapped_column(String(64), primary_key=True)
+    dimension: Mapped[str] = mapped_column(String(16), primary_key=True)
+    category_code: Mapped[str] = mapped_column(String(32), primary_key=True)
+    district_code: Mapped[str | None] = mapped_column(ForeignKey("districts.code"))
+    label: Mapped[str] = mapped_column(Text)
+    indicator_label: Mapped[str] = mapped_column(Text)
+    definition: Mapped[str] = mapped_column(Text)
+    population: Mapped[str] = mapped_column(Text)
+    unit: Mapped[str] = mapped_column(String(16))
+    survey_round: Mapped[str] = mapped_column(String(16))
+    estimate_pct: Mapped[Decimal] = mapped_column(Numeric)
+    standard_error_pct: Mapped[Decimal | None] = mapped_column(Numeric)
+    ci_lower_pct: Mapped[Decimal | None] = mapped_column(Numeric)
+    ci_upper_pct: Mapped[Decimal | None] = mapped_column(Numeric)
+    cv_pct: Mapped[Decimal | None] = mapped_column(Numeric)
+    design_effect: Mapped[Decimal | None] = mapped_column(Numeric)
+    printed_decimals: Mapped[int] = mapped_column(SmallInteger)
+    page: Mapped[int] = mapped_column(SmallInteger)
+    table_or_figure: Mapped[str] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    sort_order: Mapped[int] = mapped_column(SmallInteger)
