@@ -121,8 +121,8 @@ class Database:
     def read_only_session(self) -> Iterator[Session]:
         """A session whose transaction PostgreSQL itself refuses to write in.
 
-        The API only reads seeded reference data (Q-02: no citizen persistence), so every API
-        request uses this.
+        Every API request uses this except the two account endpoints (`get_write_session`),
+        which are the only ones that store data a person sends (contract §11.8).
         """
         with self._managed(self._read_only_sessions) as session:
             try:
@@ -149,4 +149,14 @@ def get_database(request: Request) -> Database:
 def get_read_session(request: Request) -> Iterator[Session]:
     """FastAPI dependency: one read-only session per request, closed afterwards."""
     with get_database(request).read_only_session() as session:
+        yield session
+
+
+def get_write_session(request: Request) -> Iterator[Session]:
+    """FastAPI dependency for the account endpoints only (contract §11.8): one writable session.
+
+    The service commits explicitly; anything not committed is rolled back when it closes. Every
+    other endpoint keeps `get_read_session`.
+    """
+    with get_database(request).session() as session:
         yield session

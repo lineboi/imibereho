@@ -8,7 +8,7 @@ internal detail.
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Final
+from typing import Any, ClassVar, Final
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -85,6 +85,7 @@ class ProblemError(Exception):
     slug: str = "internal"
     title: str = "Internal server error"
     status: int = 500
+    headers: ClassVar[Mapping[str, str] | None] = None
 
     def __init__(self, detail: str, *, errors: Sequence[FieldError] | None = None) -> None:
         super().__init__(detail)
@@ -119,6 +120,53 @@ class SwapNotFoundError(ProblemError):
         super().__init__("No seasonal swap has this id.")
 
 
+class IdentifierTakenError(ProblemError):
+    slug = "identifier-taken"
+    title = "Identifier already registered"
+    status = 409
+
+    def __init__(self) -> None:
+        super().__init__("An account with this identifier already exists. Log in instead.")
+
+
+class InvalidCredentialsError(ProblemError):
+    """The same answer for an unknown identifier and a wrong password (no account probing)."""
+
+    slug = "invalid-credentials"
+    title = "Invalid credentials"
+    status = 401
+    # RFC 9110 §15.5.2: a 401 names its authentication scheme.
+    headers: ClassVar[Mapping[str, str] | None] = {"WWW-Authenticate": "Bearer"}
+
+    def __init__(self) -> None:
+        super().__init__("The identifier or password is incorrect.")
+
+
+class NotAuthenticatedError(ProblemError):
+    """A missing or unusable bearer token, whatever the reason (contract §11.8).
+
+    One answer for a missing, malformed, wrongly signed or expired token and for an account
+    that no longer exists, so a caller learns nothing about the token or the account.
+    """
+
+    slug = "not-authenticated"
+    title = "Not authenticated"
+    status = 401
+    headers: ClassVar[Mapping[str, str] | None] = {"WWW-Authenticate": "Bearer"}
+
+    def __init__(self) -> None:
+        super().__init__("A valid bearer token is required.")
+
+
+class AuthNotConfiguredError(ProblemError):
+    slug = "auth-not-configured"
+    title = "Accounts unavailable"
+    status = 503
+
+    def __init__(self) -> None:
+        super().__init__("Accounts are not available on this server.")
+
+
 class RequestValidationProblem(ProblemError):
     """A 422 raised by a service, for rules that need reference data (validated before lookups)."""
 
@@ -149,6 +197,9 @@ _CODE_BY_TYPE: Final = {
     "string_too_long": "too_long",
     "extra_forbidden": "unknown_field",
     "required": "required",
+    # Raised only by the account schemas (contract §11.8), as PydanticCustomError types.
+    "too_short": "too_short",
+    "invalid_format": "invalid_format",
 }
 
 _MESSAGE_BY_CODE: Final = {
@@ -157,6 +208,8 @@ _MESSAGE_BY_CODE: Final = {
     "unknown_value": "This value is not allowed.",
     "too_long": "This value is too long.",
     "unknown_field": "This field is not recognised.",
+    "too_short": "This value is too short.",
+    "invalid_format": "Must be a +2507XXXXXXXX phone number or an email address.",
 }
 
 
@@ -233,7 +286,9 @@ async def request_validation_handler(request: Request, exc: Exception) -> Respon
 async def problem_error_handler(request: Request, exc: Exception) -> Response:
     if not isinstance(exc, ProblemError):  # registered for this type only
         raise exc
-    return problem_response(exc.slug, exc.title, exc.status, exc.detail, errors=exc.errors)
+    return problem_response(
+        exc.slug, exc.title, exc.status, exc.detail, errors=exc.errors, headers=exc.headers
+    )
 
 
 async def http_exception_handler(request: Request, exc: Exception) -> Response:

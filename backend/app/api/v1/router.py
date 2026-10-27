@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     agro,
+    auth,
     benchmarks,
     budget,
     dashboard,
@@ -29,5 +30,6 @@ for module in (
     policy_scenarios,
     dashboard,
     nisr,
+    auth,
 ):
     router.include_router(module.router)

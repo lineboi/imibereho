@@ -1,4 +1,11 @@
-"""No citizen personal data is stored on the server (Q-02, Option A)."""
+"""Citizen data stored on the server is limited to household accounts (contract §11.8).
+
+Q-02 (Option A: nothing a person sends is stored) holds for every table except
+`household_accounts`, added on 2026-10-28 at the project owner's direction for citizen
+`POST /auth/register` and `POST /auth/login` (Q-02's Option C for that table; Q-04 unchanged; no
+privacy policy approved, Q-13 open). These tests pin that exception so no other table, column or
+endpoint can start storing personal data unnoticed.
+"""
 
 from typing import Final
 
@@ -36,6 +43,8 @@ APPROVED_TABLES: Final = frozenset(
         "survey_estimates",
     }
 )
+# Personal data, added at the project owner's direction on 2026-10-28 (contract §11.8): one table.
+ACCOUNT_TABLES: Final = frozenset({"household_accounts"})
 # Matched against whole `_`-separated tokens, so `footnote` or a district `name` do not match.
 PERSONAL_TOKENS: Final = frozenset(
     {
@@ -56,10 +65,18 @@ REVIEWED_NON_PERSONAL_COLUMNS: Final = frozenset(
         "survey_estimates.notes",
     }
 )
+# The account table's columns, reviewed one by one: a login identifier (phone or email), an
+# Argon2id hash (never the password) and the profile the PDF's register request carries.
+ACCOUNT_COLUMNS: Final = frozenset(
+    {
+        "id", "identifier", "password_hash", "district_code", "household_size", "monthly_income",
+        "currency", "preferred_language", "created_at",
+    }
+)  # fmt: skip
 
 
 def test_only_approved_tables_exist_in_the_models() -> None:
-    assert set(Base.metadata.tables) == APPROVED_TABLES
+    assert set(Base.metadata.tables) == APPROVED_TABLES | ACCOUNT_TABLES
     forbidden = {"users", "households", "budget_plans", "budget_plan_lines", "expenses"}
     assert not forbidden & set(Base.metadata.tables)
 
@@ -68,6 +85,7 @@ def test_no_column_looks_like_personal_data() -> None:
     offenders = [
         f"{table.name}.{column.name}"
         for table in Base.metadata.tables.values()
+        if table.name not in ACCOUNT_TABLES
         for column in table.columns
         if column.name in PERSONAL_NAMES or set(column.name.split("_")) & PERSONAL_TOKENS
     ]
@@ -77,10 +95,16 @@ def test_no_column_looks_like_personal_data() -> None:
     assert set(offenders) == REVIEWED_NON_PERSONAL_COLUMNS
 
 
+def test_the_account_table_holds_only_the_reviewed_columns() -> None:
+    assert {column.name for column in Base.metadata.tables["household_accounts"].columns} == (
+        ACCOUNT_COLUMNS
+    )
+
+
 def test_migrated_database_has_only_approved_tables(test_database: Database) -> None:
     with test_database.engine.connect() as connection:
         tables = set(inspect(connection).get_table_names()) - {"alembic_version"}
-    assert tables == APPROVED_TABLES
+    assert tables == APPROVED_TABLES | ACCOUNT_TABLES
 
 
 def test_calculation_requests_write_nothing(db_client: TestClient, test_database: Database) -> None:

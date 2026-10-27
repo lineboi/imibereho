@@ -12,11 +12,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Final, Literal
 
-from pydantic import Field, ValidationError, ValidationInfo, field_validator
+from pydantic import Field, SecretStr, ValidationError, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 BACKEND_DIR: Final = Path(__file__).resolve().parents[2]
 ENV_FILE: Final = BACKEND_DIR / ".env"
+JWT_SECRET_MIN_LENGTH: Final = 32  # 256 bits of key material for HS256 (RFC 7518 §3.2)
 
 Environment = Literal["local", "ci", "production"]
 Target = Literal["dev", "test", "migrations", "production"]
@@ -69,6 +70,21 @@ class Settings(BaseSettings):
     # Local development only: permits a PostgreSQL superuser for target `dev` with
     # ENVIRONMENT=local on a local host (see app/db/guards.py). Refused outright elsewhere.
     allow_local_superuser: bool = False
+    # Signs the bearer tokens of /auth/register and /auth/login (HS256, contract §11.8). Without
+    # it those two endpoints answer 503 `auth-not-configured`; nothing else needs it.
+    jwt_secret_key: SecretStr | None = Field(default=None, repr=False)
+
+    @field_validator("jwt_secret_key", mode="before")
+    @classmethod
+    def _blank_secret_is_unset(cls, value: object) -> object:
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("jwt_secret_key")
+    @classmethod
+    def _secret_is_long_enough(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and len(value.get_secret_value()) < JWT_SECRET_MIN_LENGTH:
+            raise ValueError(f"JWT_SECRET_KEY must be at least {JWT_SECRET_MIN_LENGTH} characters")
+        return value
 
     @field_validator("database_url", "test_database_url", "migrations_database_url")
     @classmethod

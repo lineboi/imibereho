@@ -4,6 +4,7 @@
 > **Status: v0.2, backend proposal, awaiting frontend sign-off.** Nothing here is implemented yet. Once frontend and backend agree, the status becomes "agreed". After that, changes need a new contract version and a note in §9.
 > **Status of v0.3 (§10, official published statistics): agreed.** v0.3 was agreed by the frontend teammate on 27 October 2026. The approval covers contract v0.3 only; it does not cover v0.2 rev 2, whose status above is unchanged.
 > **Status of v0.4 (§11, from `MISSING_APIS.pdf`): implemented by the backend at the project owner's direction (2026-10-27); frontend sign-off pending.**
+> **Status of v0.5 (§11.8, household accounts: register and login): implemented by the backend at the project owner's direction (2026-10-28); frontend sign-off pending.** It changes **Q-02 for one table**: citizen accounts (Option C) in `household_accounts`. **Q-04** (decision-maker login) is **unchanged**. Q-13 (retention, deletion, consent) and Q-34 (the design copy "does not collect or save your details") are open; see §11.8.
 > **Basis:** the Figma screens ([design-inventory.md](../figma/design-inventory.md)), [backend-requirements.md](./backend-requirements.md), and the resolutions of Q-01, Q-02, Q-04 and Q-15 in [open-questions.md](../requirements/open-questions.md).
 >
 > **Evidence labels** (same as the other docs, plus one):
@@ -27,8 +28,8 @@ Three version numbers exist. They are independent.
 |---|---|
 | Base URL | `/api/v1`. The health checks `/health` and `/ready` are at the root, outside `/api/v1`. |
 | Format | JSON, UTF-8. Field names are `camelCase`. |
-| Auth | None. Q-04 is resolved: the demo has no login. |
-| Citizen data | Never stored (Q-02 resolved, Option A). Request bodies are processed and then discarded, never logged. Money values travel only in POST bodies, never in query strings, because hosting-platform access logs record full URLs. |
+| Auth | `POST /auth/register` and `POST /auth/login` issue bearer tokens (v0.5, §11.8): citizen accounts, a Q-02 change made at the project owner's direction on 2026-10-28; Q-04 (decision-maker login) is unchanged. A current-account dependency verifies tokens for future protected routes, but no served endpoint requires a token; every endpoint stays public. |
+| Citizen data | Never stored (Q-02 resolved, Option A), with one exception since v0.5: `POST /auth/register` stores a household account (§11.8). Request bodies are processed and then discarded, never logged. Money values travel only in POST bodies, never in query strings, because hosting-platform access logs record full URLs. |
 | Money | Integer RWF, e.g. `180000`. The frontend formats `180,000 RWF` and `18m RWF`. |
 | Numbers in responses | Every numeric field is a **JSON number, never a string**. Integers (money, counts, scores, months) are written without a decimal point. Fractional fields are written with no more decimal places than listed: ratios and shares 4 (`0.8333`), `runwayMonths` 1 (`7.5`, `10.0`), weights 2 (`0.4`), swap quantities 2 (`1`, `2`). |
 | Percent inputs | Integer 0–100. `20` means 20%. |
@@ -87,10 +88,14 @@ Content type: `application/problem+json`.
 | 404 | `benchmark-not-available` | No benchmark exists for this district and household size | — |
 | 404 | `not-found` | Unknown route | — |
 | 405 | `method-not-allowed` | Wrong HTTP method | — |
-| 422 | `validation` | Field-level failures | `required`, `out_of_range`, `not_integer`, `unknown_value` (a bad enum or filter value), `too_long`, `unknown_field` (an extra body field) |
+| 401 | `invalid-credentials` | `POST /auth/login` only: unknown identifier or wrong password (one answer for both); carries `WWW-Authenticate: Bearer` (§11.8) | — |
+| 401 | `not-authenticated` | A protected route only (none is served yet): a missing, malformed, wrongly signed or expired bearer token, or one whose account no longer exists (one answer for all); carries `WWW-Authenticate: Bearer` (§11.8) | — |
+| 409 | `identifier-taken` | `POST /auth/register` only: an account already uses this identifier (§11.8) | — |
+| 422 | `validation` | Field-level failures | `required`, `out_of_range`, `not_integer`, `unknown_value` (a bad enum or filter value), `too_long`, `unknown_field` (an extra body field); for the account endpoints only (§11.8), also `too_short` and `invalid_format` |
 | 429 | `rate-limited` | Too many calculation requests; includes a `Retry-After` header. **Optional step**; may not ship | — |
 | 500 | `internal` | Unexpected error. No internal detail is returned; quote `X-Request-ID` when reporting | — |
 | 503 | `not-ready` | Only from `/ready`; carries a `checks` member (§2) | — |
+| 503 | `auth-not-configured` | `POST /auth/register` and `POST /auth/login` only: the server has no `JWT_SECRET_KEY` (§11.8) | — |
 
 ## 2. Health checks (root, not under `/api/v1`)
 
@@ -452,6 +457,8 @@ Rate limiting (429) is also optional. Every other code in §1.3 applies to all e
 | 0.2 | 2026-10-24 | Q-01, Q-02, Q-04 and Q-15 resolved; the Option B and auth variants removed. `meta` added to every data response, including `/dashboard/filters` and `/methodology`. Error format reconciled: `unknown_field` added; unknown district → 404 (narrowed in rev 2 to the `district` and `districtCode` parameters); unknown filter or enum value → 422 `unknown_value`; `benchmark-not-available` and `not-ready` added. Number parsing rules added (§1.2). Household-shock gains `savingsExhausted`, and `runwayMonths` is 1 dp or `null`. Policy-scenario gains `baselineUsed`; `savingsAfterHorizon` stays BR-07 as written and can be negative. Benchmarks cover household size 4 only. Scores are integers with `band1`–`band4` keys. `/dashboard/filters` offers defaults only; per-district geography is optional and needs a decision. `/methodology` returns structured data only and is optional. `budget-comparison` and `demo-household` added as optional. `/health` and `/ready` added at the root. `X-Request-ID`, CORS and an English-only response language added. |
 | 0.3 | 2026-10-27 | **Agreed** by the frontend teammate on 27 October 2026. The approval covers v0.3 only; v0.2 rev 2 is not covered and still awaits sign-off. Adds §10: the official published statistics endpoints `GET /api/v1/nisr/sources`, `/nisr/financial-inclusion/national`, `/nisr/financial-inclusion/districts`, `/nisr/poverty` and `/nisr/health-insurance`, with the official-statistics `meta` (`isIllustrative: false`, `dataKind`, `sourceIds`); `printedDecimals` for display rounding; NISR attribution for EICV7 and AFR attribution for FinScope; EICV7 and FinScope kept as separate datasets in charts and filters. |
 | 0.4 | 2026-10-27 | **Implemented by the backend at the project owner's direction; frontend sign-off pending.** Adds §11 from `MISSING_APIS.pdf`: `GET /api/v1/shocks/catalog` and `POST /api/v1/calculations/resilience-simulation` (§11.1); `POST /api/v1/calculations/agro-savings-projection` (§11.2); new 404 slug `swap-not-found`; `POST /api/v1/calculations/stress-test`, `GET /api/v1/calculations/district-comparison` (snake_case query parameters, as in the PDF) and `GET /api/v1/districts/{code}/basket-details` (§11.3); twelve account and tracker endpoints recorded as blocked by Q-02/Q-04 (§11.4); `nutrition/indyo-yuzuye`, `agro/harvest-calendar` and `market/shopping-checklist` served as `awaiting_validated_data` (§11.5); reconciliation of all 21 PDF endpoints (§11.6). Later on 2026-10-27, with the project owner's approval: BR-24 household-size scaling for `district-comparison` and `stress-test`; the PDF's `runwayMonths` (buffer ÷ raw gap); `agro/harvest-calendar` served from NISR SAS 2025 (new source `sas-2025`). Then, with the project owner's approval of the PDF's example values as illustrative data: §11.7 and `meta.provenance`; Gasabo and Musanze example baskets; Gasabo staple prices and market hub; purchasing-power equivalents (BR-25); the balanced plate; the Gasabo size-4 checklist; `harvest_disruption` in the shock catalogue; the score and buffer-impact deviations documented with their evidence. Then `status` added to `basket-details`, and the open decisions for #13 and #21 listed (§11.7). Then BR-24 scaling of the Gasabo checklist to sizes 1–20 with `valueBasis`, and the district price evidence recorded (§11.5, §11.7). |
+| 0.5 | 2026-10-28 | **Implemented by the backend at the project owner's direction; frontend sign-off pending.** Adds §11.8: `POST /api/v1/auth/register` (201) and `POST /api/v1/auth/login` (200), with the PDF's fields exactly; the `household_accounts` table (migration 0009), Argon2id password hashes and HS256 bearer tokens valid for 86,400 s; new problem types `invalid-credentials` (401), `identifier-taken` (409) and `auth-not-configured` (503); new 422 codes `too_short` and `invalid_format` for these two endpoints. A Q-02 change for that table only (citizen accounts, Option C); Q-04 unchanged (§1, §11.4). |
+| 0.5 rev 1 | 2026-10-28 | Security review fixes, frontend sign-off still pending. Identifiers are ASCII only: lookalikes (non-ASCII digits, invisible or fullwidth characters) are rejected, not normalised. A current-account dependency for future protected routes (new 401 `not-authenticated`; HS256 only; `sub`, `iat`, `exp` required; the account must exist); CORS allows `Authorization`. The Q-02/Q-04 wording is corrected and the open privacy decisions are listed (Q-13, Q-34). No endpoint added or changed in shape. |
 
 ## 10. Official published statistics (contract v0.3)
 
@@ -556,17 +563,16 @@ All three endpoints are illustrative. **Gasabo and Musanze** use the PDF's examp
 
 ### 11.4 Blocked by Q-02 and Q-04 (not served)
 
-These twelve PDF endpoints need accounts or server-side storage of a household's own data. Q-04 (no login, no `/auth/*` endpoints) and Q-02 (citizen data is never stored) are resolved decisions, so the routes aren't registered and an unknown path gives 404 `not-found`. Under Q-02 the tracker, profile and plan data stay on the device. A test (`test_privacy_blocked_pdf_endpoints_are_not_served`) keeps the routes out.
+These ten PDF endpoints need server-side storage of a household's own data beyond its account, and ownership checks on top of the current-account dependency (§11.8). Q-02 (citizen data is never stored, except the account table of §11.8) still applies to them, so the routes aren't registered and an unknown path gives 404 `not-found`. Under Q-02 the tracker, profile and plan data stay on the device. A test (`test_privacy_blocked_pdf_endpoints_are_not_served`) keeps the routes out.
 
 | Endpoint | Needs |
 |---|---|
-| `POST /api/v1/auth/register`, `POST /api/v1/auth/login` | accounts, password hashes, tokens (Q-04) |
 | `GET /api/v1/user/profile`, `PUT /api/v1/user/profile` | a stored household profile tied to an account (Q-02, Q-04) |
 | `GET /api/v1/tracker/overview`, `GET /api/v1/tracker/daily-trend`, `GET /api/v1/tracker/burn-rate` | aggregates of stored transactions (Q-02) |
 | `GET /api/v1/tracker/transactions`, `POST /api/v1/tracker/transactions`, `PUT /api/v1/tracker/transactions/{id}`, `DELETE /api/v1/tracker/transactions/{id}` | stored transactions (Q-02) |
 | `POST /api/v1/user/resilience-plan` | a stored plan (Q-02) |
 
-Serving any of them needs the project owner to reopen Q-02 and Q-04 formally, with a privacy policy, consent, authentication, a write path and ownership checks.
+Register and login moved out of this list in v0.5 (§11.8), which supplies the accounts and tokens. Serving the others needs the project owner to reopen Q-02 for their data, plus a privacy policy, consent (Q-13), the current-account dependency of §11.8 on each request, and ownership checks.
 
 ### 11.5 Content endpoints
 
@@ -590,7 +596,7 @@ When a cited source is added, `status` becomes `"available"` and the fields fill
 
 | # | Endpoint | Outcome |
 |---|---|---|
-| 1–2 | `POST /auth/register`, `POST /auth/login` | Blocked: Q-04 (§11.4) |
+| 1–2 | `POST /auth/register`, `POST /auth/login` | Complete (v0.5, §11.8): the PDF's request and response fields exactly; validation rules, errors and token claims set by the backend because the PDF gives none |
 | 3–4 | `GET`/`PUT /user/profile` | Blocked: Q-02/Q-04 (§11.4) |
 | 5–11 | `/tracker/*` (overview, transactions ×4, daily-trend, burn-rate) | Blocked: Q-02 (§11.4) |
 | 12 | `GET /calculations/district-comparison` | Complete (illustrative): the PDF example exactly (Gasabo vs Musanze, §11.7); any household size (BR-24); districts without a PDF basket use the shared benchmark |
@@ -630,3 +636,35 @@ On 2026-10-27 the project owner approved serving the example values in `MISSING_
 2. **#21 checklist for districts other than Gasabo.** Needs, per district: item names, quantities and prices, `totalEstimatedBasket`, `unoptimizedBasket` and `estimatedSavings`, from the same kinds of source, plus a definition of `unoptimizedBasket` (the PDF does not define it).
 3. ~~**#21 household sizes other than 4.**~~ Closed on 2026-10-27: the owner approved BR-24 scaling of the Gasabo example (§11.5).
 4. **#21 the 4,750 vs 6,250 discrepancy.** Needs the owner to say whether the example list is partial (and give the missing items) or which figure is wrong. Until then the total is served as 6,250 (scaled at other sizes) and no item is invented.
+
+### 11.8 Household accounts: register and login (contract v0.5)
+
+**Status.** Implemented on 2026-10-28 at the project owner's direction ("implement auth API endpoints ... follow the request and response as shown on MISSING_APIS.pdf"); frontend sign-off pending. This is a **Q-02 change for the `household_accounts` table only**: citizen accounts, Q-02's Option C, where Q-02 otherwise stays Option A (profile, plan and expenses remain on the device). It is an implemented technical change, **not** a privacy-policy approval. **Q-04** (decision-maker login) is a different question and is **unchanged**. Every other endpoint is unchanged: public, and storing nothing. The profile and tracker endpoints stay unserved (§11.4).
+
+**What the PDF fixes and what the backend chose.** The PDF (page 4) gives the paths, the request and response fields, `201` for register, "Argon2/bcrypt", a JWT and `expiresIn: 86400`. It gives no validation rules, error responses, token claims or id format; those below are the backend's choices, made with the usual conventions of §1.
+
+**`POST /api/v1/auth/register`** → `201`
+- Request (the PDF's fields; camelCase; unknown fields → 422 `unknown_field`; no query parameters):
+  - `identifier`: a Rwandan mobile number in E.164 form, `+2507` and 8 digits (`+250788123456`), or an email address in ASCII (a local part of printable ASCII other than space and `@`, one `@`, and a domain of ASCII letters, digits and hyphens with at least one dot; at most 254 characters). Only ASCII whitespace is trimmed from the ends, and an email is lower-cased; the stored and returned identifier is that normalised form. **Non-ASCII characters are rejected, never transformed:** Arabic-Indic or fullwidth digits, fullwidth or Cyrillic letters, zero-width and no-break spaces all give 422 `invalid_format`, so one identifier can never be registered twice in another form, and such a string at login is answered like an unknown identifier. Anything else that does not match → 422 `invalid_format`; over 254 characters → `too_long`.
+  - `password`: 8–128 characters (`too_short`, `too_long`). Stored only as an Argon2id hash; never logged, stored or returned, and never echoed in an error.
+  - `profile.district`: a district code (case-sensitive, §5) → else 404 `district-not-found`, after validation. `profile.householdSize`: integer 1–20. `profile.monthlyIncome`: integer RWF 0–100,000,000. `profile.currency`: `"RWF"` only. `profile.preferredLanguage`: `"EN"` or `"RW"`, the frontend's two languages.
+- Response: `{"token", "tokenType": "bearer", "expiresIn": 86400, "user": {"id", "identifier", "district", "householdSize"}}`, as in the PDF.
+- An identifier that already has an account → 409 `identifier-taken` (an email in another case is the same identifier). This tells a caller that an account exists for that identifier; the PDF's flow needs it, and it is recorded here as a known trade-off.
+
+**`POST /api/v1/auth/login`** → `200`
+- Request: `{"identifier", "password"}`, at most 254 and 128 characters; the identifier is normalised as above.
+- Response: `{"token", "tokenType": "bearer", "user": {"id", "district"}}`, exactly the PDF's (no `expiresIn`; the token still expires after 86,400 s).
+- Unknown identifier, malformed identifier or wrong password → the same 401 `invalid-credentials` with `WWW-Authenticate: Bearer`, after the same Argon2 work, so the answer does not reveal which part was wrong.
+
+**Both endpoints.** Validation (400, 422) comes first. Then, if the server has no `JWT_SECRET_KEY` (at least 32 characters, set in the environment or `backend/.env`), 503 `auth-not-configured`, and nothing is stored. Neither endpoint is rate-limited yet (§1.3 lists 429 as optional).
+
+**Tokens.** JWT, HS256 (the PDF example's header), claims `sub` (the account id), `iat` and `exp` = `iat` + 86,400. Account ids are `usr_` + a ULID (26 Crockford base32 characters), the form of the PDF's `usr_01JBCDEFGH`.
+
+**Current-account dependency (for future protected routes; no served endpoint uses it yet).** `app/services/current_account.py` provides `CurrentAccountDep`. It reads `Authorization: Bearer <token>` (scheme case-insensitive), verifies the signature with `JWT_SECRET_KEY` using **HS256 only** (the token header's `alg` is not trusted, so `none` and other algorithms fail), and requires `sub` (an account id), `iat` and `exp` as integers, with `iat` not in the future, `exp` in the future (no leeway) and a lifetime of at most 86,400 s. The subject must be an existing account, so a token stops working when its account is deleted. Every failure (missing header, another scheme, malformed token, wrong signature, expired, missing or ill-typed claim, unknown account) gets the same 401 `not-authenticated` with `WWW-Authenticate: Bearer`; nothing about the token, the secret or the cause is returned or logged. Without `JWT_SECRET_KEY` the answer is 503 `auth-not-configured`. It returns the account's id, identifier, district, household size, monthly income, currency and language, never the password hash. CORS allows the `Authorization` header (§1). The profile endpoints (§11.4) would be the first users.
+
+**Stored (`household_accounts`, migration 0009).** `id`, `identifier`, `password_hash` (Argon2id), `district_code`, `household_size`, `monthly_income`, `currency`, `preferred_language`, `created_at`. No name and nothing finer than a district. Seeding never touches the table. Request bodies are still never logged (§1). Not yet provided, and needed before real households use it: a privacy notice and consent, account deletion, password reset, rate limiting on login, and a retention rule.
+
+**Open decisions (not approved; recorded in `docs/requirements/open-questions.md`):**
+- **Q-13 (Product): retention, deletion and consent** for the stored accounts. Open again since this table exists.
+- **Q-34 (frontend owner and Product): the design copy** "This prototype does not collect or save your details" and "No registration or phone number required" (`2:6401`, `2:6407`, `2:6409`) now conflicts with registration. The copy is design and frontend content, so the backend has not changed it; the frontend owner and Product decide whether to change the copy, show registration only with a privacy notice, or keep registration out of the citizen UI. Using the app without an account still works, because no served endpoint requires a token.
+- **Frontend sign-off** on v0.5.

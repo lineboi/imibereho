@@ -25,6 +25,7 @@ def _clean_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         "CORS_ORIGINS",
         "LOG_LEVEL",
         "ALLOW_LOCAL_SUPERUSER",
+        "JWT_SECRET_KEY",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -158,3 +159,22 @@ def test_settings_repr_never_contains_database_urls() -> None:
         assert "secret-password" not in text
         assert "postgresql" not in text
     assert settings.database_url_for("dev").endswith("/imibereho")  # still usable
+
+
+SIGNING_KEY = "k" * 32
+
+
+def test_jwt_secret_is_optional_and_blank_counts_as_unset() -> None:
+    assert build(environment="local").jwt_secret_key is None
+    assert build(environment="local", jwt_secret_key="  ").jwt_secret_key is None
+
+
+def test_jwt_secret_needs_32_characters_and_is_never_echoed() -> None:
+    short = "s3cr3t-but-short"
+    with pytest.raises(InvalidSettingsError, match="JWT_SECRET_KEY") as excinfo:
+        build(environment="local", jwt_secret_key=short)
+    assert short not in str(excinfo.value)
+    settings = build(environment="local", jwt_secret_key=SIGNING_KEY)
+    assert settings.jwt_secret_key is not None
+    assert settings.jwt_secret_key.get_secret_value() == SIGNING_KEY
+    assert SIGNING_KEY not in repr(settings) and SIGNING_KEY not in str(settings)

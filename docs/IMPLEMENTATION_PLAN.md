@@ -30,8 +30,8 @@
 | Question | Decision (resolved 2026-10-24) | Consequence |
 |---|---|---|
 | Q-01 | Hackathon demo on synthetic, clearly labelled data, built to production quality | Seeded data under methodology `0.1`; `meta.isIllustrative: true` (FR-20). Confirms A-1 |
-| Q-02 | Option A: no citizen data on the server, no citizen accounts | Stateless for citizens; request bodies are never stored or logged (`2:6407`, `2:7417`). Q-13 does not apply. Confirms A-2 |
-| Q-04 | No decision-maker login for the demo | No `users` table and no `/auth/*` endpoints. Confirms A-3 |
+| Q-02 | Option A: no citizen data on the server, no citizen accounts. **Changed 2026-10-28** for accounts only: `household_accounts` and citizen register/login (Option C; contract §11.8), implemented at the project owner's direction; not a privacy-policy approval | Stateless for citizens except that table; request bodies are never logged (`2:6407`, `2:7417`). Q-13 is open again; Q-34 records the conflicting design copy. A-2 holds except for accounts |
+| Q-04 | No decision-maker login for the demo | No decision-maker accounts or roles. The citizen `/auth/*` endpoints of contract §11.8 are a Q-02 change, not a Q-04 one. Confirms A-3 |
 | Q-15 | Python 3.12, FastAPI, PostgreSQL, typed SQLAlchemy 2.0, Alembic, Pydantic v2, pytest, ruff, mypy; **local development on a local PostgreSQL server managed through pgAdmin 4, using uv**; Render for hosting; **Docker and Docker Compose deferred to the containerisation phase**. **PostgreSQL versions: 18 for local development; 16 for CI and deployment, provisionally, pending the compatibility verification in §2.11** | §2.2, §2.9, §2.11, §3, §4.2 |
 | Project deadline | Demo-ready and deployed by **2026-10-28** (set by the project owner; not part of any Q-xx). One backend engineer; the frontend belongs to a teammate | §5 |
 
@@ -107,7 +107,7 @@ Each step goes through every item that is **active** for it (§2.1). If an item 
    - **Services** (`backend/app/services/`) handle **business rules and orchestration**. They call repositories for data and F1's pure `calculations` for arithmetic, apply validation that needs data (for example, an unknown district → 404), and build response objects. They never construct SQL themselves.
    - **Routers** (`backend/app/api/`) parse the request, call one service, and return its result. They hold no logic and never touch repositories or the `Session` directly.
    - **Calculations** (`backend/app/calculations/`) stay pure: no database, no framework imports.
-   - **Writers:** only Alembic migrations and the seed framework (`backend/app/seed/`) write to the database. The repositories used by the API are read-only, so the API never writes (Q-02: no citizen persistence). The seed framework reads `seed_state` through `repositories/seed_state.py`, which `/ready` also uses.
+   - **Writers:** only Alembic migrations and the seed framework (`backend/app/seed/`) write to the database. The repositories used by the API are read-only, so the API never writes (Q-02: no citizen persistence), **except** `POST /auth/register`, which inserts one `household_accounts` row (contract §11.8, 2026-10-28). The seed framework reads `seed_state` through `repositories/seed_state.py`, which `/ready` also uses.
 5. **Router** in `backend/app/api/v1/`, with `response_model`, `summary` and documented error responses.
 6. **Seed data** in `backend/app/seed/data/` reproducing the design values and citing node IDs, registered with the A3 seed framework.
 7. **Unit tests** pinned to the §2.4 design reference values.
@@ -870,7 +870,7 @@ Small PRs throughout. Approving A1–A3 as a batch on day 1 is recommended.
 | Q-32 | **One illustrative benchmark set at household size 4 for every district; swaps apply to every district.** | Data only |
 | Q-33 | **One reference-household trend series.** | Data only |
 
-Questions with **no backend impact** under the resolved decisions: Q-07, Q-08, Q-25 and Q-31 (device-only data under Q-02); Q-13 (not applicable under Q-02); Q-27, Q-28, Q-29 and Q-30 (frontend).
+Questions with **no backend impact** under the resolved decisions: Q-07, Q-08, Q-25 and Q-31 (device-only data under Q-02); Q-13 (open again since the 2026-10-28 citizen accounts; see open-questions); Q-27, Q-28, Q-29 and Q-30 (frontend).
 
 ---
 

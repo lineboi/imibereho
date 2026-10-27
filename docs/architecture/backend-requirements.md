@@ -4,6 +4,7 @@
 > Evidence tags: **[E]** explicit in design · **[I]** inferred · **[U]** unknown (see `Q-xx` in [open-questions.md](../requirements/open-questions.md)).
 > No backend code or database exists in the repo yet (it holds only the Vite + React + TS template in `frontend/`).
 > **Resolved 2026-10-24:** Q-01 (demo on synthetic data, production quality), Q-02 (Option A), Q-04 (no decision-maker login), Q-15 (Python 3.12 / FastAPI / PostgreSQL: 18 local, 16 CI and deployment, provisional pending compatibility verification / SQLAlchemy 2.0 / Alembic / Pydantic v2 / uv; local PostgreSQL managed through pgAdmin 4 for development; Render for hosting; Docker deferred to a later containerisation phase). Rows marked **(Option B only)** or "Not built" below are out of scope for v1 and kept only for traceability.
+> **Changed 2026-10-28 (implementation at the project owner's direction, not a policy approval):** Q-02 for one table: citizen register/login accounts in `household_accounts` (Option C; contract §11.8). Q-04 (decision-maker login) is unchanged. Q-13 (retention, deletion, consent) and Q-34 (the "does not collect or save your details" copy) are open.
 > **Superseded sections:** §4 (tables), §5 (API resources) and §6 (validation) were written before the API contract existed. They are kept for history and each is marked **SUPERSEDED** with a pointer. For endpoints, parameters, fields, status codes and validation, **only [api-contract-proposal.md](./api-contract-proposal.md) is authoritative**. For tables, see `IMPLEMENTATION_PLAN.md` §3–§4. §2 (BR-01 to BR-16) remains authoritative for formulas.
 > The authoritative API contract is [api-contract-proposal.md](./api-contract-proposal.md) (contract v0.2 rev 2). The build sequence is [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md).
 
@@ -23,7 +24,7 @@ The design does not show a CRUD-heavy app. Most of what it shows falls into thre
 | B. Anonymous server persistence | The backend issues an anonymous household ID or device token and stores the profile, plan and expenses. | Contradicts the privacy copy unless that copy changes. Needs a retention policy (Q-13). |
 | C. Account-based | Citizen accounts. | Contradicts "No account. No phone number." |
 
-**Q-02 is resolved as Option A.** The Option B additions marked **(Option B only)** are not built.
+**Q-02 is resolved as Option A.** The Option B additions marked **(Option B only)** are not built. **Since 2026-10-28, Option C exists for accounts only:** `POST /auth/register` and `POST /auth/login` store citizen accounts (contract §11.8). This contradicts the design copy quoted above; the conflict is open as Q-34, and retention, deletion and consent as Q-13.
 
 ### Where calculations run (decision needed: Q-16)
 
@@ -105,7 +106,7 @@ All of these are taken from on-screen text and verified against the demo numbers
 
 ### 3.4 Users (decision-makers)
 
-- **User** {`id`, `name`, `email`, `organisation`?, `role`}: **not built.** Q-04 is resolved as no login for the demo. The only evidence is the avatar `2:6765`.
+- **User** {`id`, `name`, `email`, `organisation`?, `role`}: **not built.** Q-04 is resolved as no decision-maker login for the demo. The only evidence is the avatar `2:6765`. Citizen accounts are a different entity (`household_accounts`, contract §11.8, a Q-02 change) and are not decision-maker users.
 
 ### 3.5 Relationships
 
@@ -136,7 +137,7 @@ Methodology (version) 1─* calculations / dataSources / boundaries / checklist
 | `synthetic_households` | `id` PK, `district_code` FK, `household_size`, `primary_income_source` enum, `monthly_income`, `monthly_essentials`, `savings`. Index (`district_code`) |
 | `monthly_series` | PK(`series_code`, `period_month`), `essentials`, `income` |
 | `methodology_versions` + child tables, or one JSON document | Depends on Q-12 |
-| `users` | Not built (Q-04 resolved: no login) |
+| `users` | Not built as such. Since 2026-10-28 `household_accounts` holds register/login accounts (contract §11.8; a Q-02 change for that table, Option C; Q-04 unchanged) |
 | `households`, `budget_plans`, `budget_plan_lines`, `expenses` | **(Option B only)** |
 
 Seeding: all demo values in the design should become a **seed dataset** so the frontend can reproduce the designs exactly. **[I]**
@@ -160,7 +161,7 @@ Seeding: all demo values in the design should become a **seed dataset** so the f
 | `/calculations/budget-comparison` | POST | **Optional** §6 | C3 | [I] |
 | `/demo-household` | GET | **Optional** §6 | C1, C2 | [I] |
 | `/health`, `/ready` (root, not under `/api/v1`) | GET | Core §2 | — | — |
-| `/auth/*`, `/me` | — | Not built (Q-04 resolved) | Avatar | — |
+| `/auth/*`, `/me` | `POST /auth/register`, `POST /auth/login` | Built 2026-10-28 (contract §11.8); `/me` not built | Avatar | — |
 | `/households/*`, `/expenses` | — | Not built (Q-02 resolved as Option A) | C1, C2 | — |
 
 No search, sorting UI or pagination is designed. Lists are bounded (30 districts, 5 categories, a few swaps). The ranking is "top N by score desc". **[E]/[I]**
@@ -188,7 +189,7 @@ All field-level failures return 422 in the shared error format (see the API cont
 
 | Concern | Requirement | Evidence |
 |---|---|---|
-| No personal data collection (citizen) | Citizen endpoints must not require identity and must not log request bodies containing income or expense data. No analytics that identify a household without consent. | [E] `2:6407`, `2:7417` |
+| No personal data collection (citizen) | Citizen endpoints must not require identity and must not log request bodies containing income or expense data. No analytics that identify a household without consent. **Exception since 2026-10-28:** `POST /auth/register` stores a citizen account (contract §11.8); no served endpoint requires a token. Q-13 and Q-34 are open. | [E] `2:6407`, `2:7417` |
 | Decision-maker access | Public for the demo (Q-04 resolved). Real data would need authentication and role-based access. | Q-04, Q-24 |
 | Read-only reference data | Mutating endpoints exist only for admins (Q-12), or seeding is done by migration or script. | [I] |
 | Rate limiting | Calculation endpoints are unauthenticated and CPU-cheap; basic per-IP limits are desirable. Planned as **optional** step O3, not core. | [I], Q-24 |
@@ -222,7 +223,7 @@ No evidence exists for: file uploads (images are static design assets), payments
 6. **Decision-maker data**: synthetic households or aggregates, vulnerability model and scores, monthly series.
 7. **Decision-maker endpoints**: filters, overview, district vulnerability, policy scenario.
 8. **Methodology endpoint**, or hand that content to the frontend (Q-12).
-9. ~~Auth and household persistence~~: not built (Q-04 and Q-02 resolved).
+9. ~~Auth and household persistence~~: citizen register/login built on 2026-10-28 (contract §11.8; a Q-02 change for accounts only). Decision-maker login (Q-04) and persistence of profile, plan and expenses are not built.
 10. Localisation of content (Q-03).
 
 Dependencies: 4 depends on nothing and can start immediately. 5 and 7 depend on 3 and 4. 6 depends on Q-18. 9 depends on its decisions.
