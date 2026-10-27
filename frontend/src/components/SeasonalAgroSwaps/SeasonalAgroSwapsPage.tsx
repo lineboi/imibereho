@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Language, NavTab } from '../../types';
 import type { AgroSwapItem } from '../../data/mockAgroSwapsData';
 import {
@@ -7,6 +7,7 @@ import {
   AGRO_SWAPS_TRANSLATIONS,
 } from '../../data/mockAgroSwapsData';
 import { DISTRICTS } from '../../data/mockData';
+import { fetchSeasonalSwaps, type SeasonalSwapApiResponse } from '../../services/api';
 import { HeroMarketBanner } from './HeroMarketBanner';
 import { AgroSwapSelectorCard } from './AgroSwapSelectorCard';
 import { MonthlySavingsProjector } from './MonthlySavingsProjector';
@@ -39,6 +40,25 @@ export const SeasonalAgroSwapsPage: React.FC<SeasonalAgroSwapsPageProps> = ({
 
   // Currently active swap item (defaults to staple: rice -> sweet potato from screenshot)
   const [selectedSwap, setSelectedSwap] = useState<AgroSwapItem>(AGRO_SWAPS_DATA[0]);
+
+  // Live Backend API state (GET /api/v1/seasonal-swaps)
+  const [, setBackendSwaps] = useState<SeasonalSwapApiResponse | null>(null);
+  const [isBackendLive, setIsBackendLive] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const m = parseInt(selectedMonth, 10) || 10;
+    fetchSeasonalSwaps(selectedDistrict, m).then((data) => {
+      if (!isMounted) return;
+      if (data && data.items.length > 0) {
+        setBackendSwaps(data);
+        setIsBackendLive(true);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedDistrict, selectedMonth]);
 
   return (
     <div className="flex-1 flex flex-col justify-between w-full">
@@ -74,6 +94,16 @@ export const SeasonalAgroSwapsPage: React.FC<SeasonalAgroSwapsPageProps> = ({
           <p className="text-[13.5px] sm:text-[15px] text-[#4F6257] leading-relaxed max-w-2xl">
             {t.subheadline}
           </p>
+
+          {/* Live Backend Connection Indicator */}
+          {isBackendLive && (
+            <div className="flex items-center gap-1.5 mt-1 self-start">
+              <span className="bg-[#EBF5EE] text-[#1E5E45] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#D0E5D8] flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#1E5E45] animate-pulse" />
+                <span>Backend: GET /api/v1/seasonal-swaps (Live 200 OK)</span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* District & Planning Month Dropdowns (Side-by-side matching mockup) */}

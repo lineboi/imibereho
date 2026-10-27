@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Language, NavTab } from '../../types';
 import type { ShockType } from '../../data/mockResilienceData';
 import {
@@ -6,6 +6,7 @@ import {
   INNOVATIVE_COPING_LEVERS,
   RESILIENCE_TRANSLATIONS,
 } from '../../data/mockResilienceData';
+import { calculateHouseholdShock, type HouseholdShockResponse } from '../../services/api';
 import { ScenarioSetupCard } from './ScenarioSetupCard';
 import { ShockResultCard } from './ShockResultCard';
 import { BufferNotGuaranteeCard } from './BufferNotGuaranteeCard';
@@ -46,6 +47,27 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
 
   // Innovative Action Levers State
   const [activeLeverIds, setActiveLeverIds] = useState<string[]>([]);
+  const [apiShockResult, setApiShockResult] = useState<HouseholdShockResponse | null>(null);
+
+  // Directly call live backend calculation endpoint: POST /api/v1/calculations/household-shock
+  useEffect(() => {
+    if (shockType !== 'income_drop') return;
+    let ignore = false;
+    calculateHouseholdShock({
+      monthlyIncome: baseMonthlyIncome,
+      monthlyEssentials: basePlannedExpenses,
+      savings: availableSavings,
+      incomeReductionPct: reductionPct,
+      durationMonths: durationMonths,
+    }).then((res) => {
+      if (!ignore && res) {
+        setApiShockResult(res);
+      }
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [shockType, reductionPct, durationMonths, availableSavings]);
 
   const handleToggleLever = (leverId: string) => {
     setActiveLeverIds((prev) =>
@@ -53,15 +75,19 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
     );
   };
 
-  // Calculations
+  // Calculations (uses live backend response if available, with resilient fallback)
   const selectedShockOption = SHOCK_OPTIONS.find((s) => s.id === shockType) ?? SHOCK_OPTIONS[0];
 
   let shockedIncome = baseMonthlyIncome;
   let effectivePlannedExpenses = basePlannedExpenses;
 
   if (shockType === 'income_drop') {
-    // BR-02 formula: 180,000 * (1 - 20/100) = 144,000 RWF
-    shockedIncome = Math.round(baseMonthlyIncome * (1 - reductionPct / 100));
+    if (apiShockResult) {
+      shockedIncome = apiShockResult.shockedMonthlyIncome;
+    } else {
+      // BR-02 formula: 180,000 * (1 - 20/100) = 144,000 RWF
+      shockedIncome = Math.round(baseMonthlyIncome * (1 - reductionPct / 100));
+    }
   } else if (selectedShockOption.isLumpSum && selectedShockOption.defaultAmount) {
     // Lump sum shock distributed over duration or hit immediately
     effectivePlannedExpenses =
@@ -71,7 +97,10 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
   }
 
   // Raw monthly gap before coping actions (BR-03)
-  const rawGap = Math.max(0, effectivePlannedExpenses - shockedIncome);
+  const rawGap =
+    shockType === 'income_drop' && apiShockResult
+      ? apiShockResult.monthlyGap
+      : Math.max(0, effectivePlannedExpenses - shockedIncome);
 
   // Coping relief calculations
   const activeLevers = INNOVATIVE_COPING_LEVERS.filter((l) => activeLeverIds.includes(l.id));
@@ -133,11 +162,17 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
             {t.subheadline}
           </p>
 
-          {/* Household Tag Pill */}
-          <div className="self-start mt-1">
+          {/* Household Tag Pill & Backend Live Connection */}
+          <div className="flex flex-wrap items-center gap-2 mt-1">
             <span className="bg-[#E4ECE5] text-[#244E38] text-xs font-semibold px-3 py-1 rounded-full border border-[#CCE2D3]">
               {district} · {householdSize} · {language === 'RW' ? 'Urugo rw’icyitegererezo' : 'Demo household'}
             </span>
+            {apiShockResult && (
+              <span className="bg-[#EBF5EE] text-[#1E5E45] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#D0E5D8] flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#1E5E45] animate-pulse" />
+                <span>Backend: POST /api/v1/calculations/household-shock (200 OK)</span>
+              </span>
+            )}
           </div>
         </div>
 

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Language, NavTab } from '../types';
 import { TRACKER_TRANSLATIONS } from '../data/mockTrackerData';
+import { checkBackendReadiness } from '../services/api';
 import { Home, BarChart2, ShieldCheck, Sprout } from 'lucide-react';
 
 interface HeaderProps {
@@ -19,6 +20,13 @@ export const Header: React.FC<HeaderProps> = ({
   onLogoClick,
 }) => {
   const t = TRACKER_TRANSLATIONS[language];
+  const [backendReady, setBackendReady] = useState<boolean>(false);
+
+  useEffect(() => {
+    checkBackendReadiness().then((res) => {
+      setBackendReady(res.ready);
+    });
+  }, []);
 
   const tabs: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     {
@@ -100,31 +108,43 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
         )}
 
-        {/* Right side: Language Switcher EN / RW */}
-        <div className="flex items-center text-sm font-semibold tracking-wider shrink-0">
-          <button
-            type="button"
-            onClick={() => onLanguageChange('EN')}
-            className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
-              language === 'EN'
-                ? 'text-[#143B2A] font-bold border-b-2 border-[#1E5E45]'
-                : 'text-[#6B7D74] hover:text-[#143B2A]'
-            }`}
-          >
-            EN
-          </button>
-          <span className="text-[#A2B0A7] mx-0.5">/</span>
-          <button
-            type="button"
-            onClick={() => onLanguageChange('RW')}
-            className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
-              language === 'RW'
-                ? 'text-[#143B2A] font-bold border-b-2 border-[#1E5E45]'
-                : 'text-[#6B7D74] hover:text-[#143B2A]'
-            }`}
-          >
-            RW
-          </button>
+        {/* Right side: Backend Live Status & Language Switcher EN / RW */}
+        <div className="flex items-center gap-3 shrink-0">
+          {backendReady && (
+            <span
+              title="FastAPI Backend Connected & Healthy (/ready)"
+              className="hidden sm:inline-flex items-center gap-1.5 bg-[#E8F3EC] text-[#1E5E45] text-[10.5px] font-semibold px-2 py-0.5 rounded-full border border-[#CEE3D5]"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-[#1E5E45] animate-pulse" />
+              <span>API Live</span>
+            </span>
+          )}
+
+          <div className="flex items-center text-sm font-semibold tracking-wider">
+            <button
+              type="button"
+              onClick={() => onLanguageChange('EN')}
+              className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
+                language === 'EN'
+                  ? 'text-[#143B2A] font-bold border-b-2 border-[#1E5E45]'
+                  : 'text-[#6B7D74] hover:text-[#143B2A]'
+              }`}
+            >
+              EN
+            </button>
+            <span className="text-[#A2B0A7] mx-0.5">/</span>
+            <button
+              type="button"
+              onClick={() => onLanguageChange('RW')}
+              className={`px-1.5 py-0.5 transition-colors cursor-pointer ${
+                language === 'RW'
+                  ? 'text-[#143B2A] font-bold border-b-2 border-[#1E5E45]'
+                  : 'text-[#6B7D74] hover:text-[#143B2A]'
+              }`}
+            >
+              RW
+            </button>
+          </div>
         </div>
       </div>
     </header>
