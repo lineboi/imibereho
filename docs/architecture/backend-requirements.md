@@ -51,6 +51,13 @@ All of these are taken from on-screen text and verified against the demo numbers
 | BR-14 | Swap difference | `priceA − priceB` for the demo baskets (quantities differ) | 2,000 − 1,600 = 400 | [E] `2:6712` |
 | BR-15 | Daily spending total | `Σ expense.amount where date = day` | 3,500 + 1,000 + 2,000 = 6,500 | [E] `2:6449` |
 | BR-16 | Vulnerability weights must sum to 1.0 | Validation | 0.4 + 0.4 + 0.2 | [I] |
+| BR-17 | Lump-sum shock spread (contract v0.4) | `shockCostMonthly = round_half_up(amount ÷ durationMonths)`, added to essentials | 45,000 ÷ 3 = 15,000 | MISSING_APIS.pdf p. 9; spreading follows the frontend simulator [I] |
+| BR-18 | Net monthly gap after coping levers (v0.4) | `netGap = max(0, rawGap − Σ monthly lever relief)`; `buffer = savings + Σ one-off lever support`; runway = BR-06 on `buffer` and `netGap` | max(0, 6,000 − 17,200) = 0; 60,000 + 25,000 = 85,000 | MISSING_APIS.pdf p. 9 |
+| BR-19 | Resilience score, illustrative (v0.4) | `baseline = clamp(70 − round_half_up(rawGap ÷ 2,000), 45, 75)`; `score = min(95, baseline + 7 × levers + (8 if levers close a rawGap > 0))`; `scoreChange = score − baseline` | 6,000 gap, 3 levers, gap closed: 67 → 95 (+28); no gap, no levers: 70 → 70 (0) | Based on the frontend simulator's heuristic [I], except that the +8 needs a closed gap (the frontend also gives it with no gap and no levers); not validated. The PDF example (88, "+26") is not reproducible |
+| BR-20 | Agro-savings projection (v0.4) | `monthly = round_half_up(perMealSaving × mealsPerWeek × 52 ÷ 12)`, with `perMealSaving` from BR-14 | 400 × 3 × 52 ÷ 12 = 5,200 | MISSING_APIS.pdf p. 10. 52/12 is the exact mean weeks per month; the frontend's 4.33 gives 5,196 |
+| BR-21 | Stress-test increase (v0.4) | `increase = Σ round_half_up(line × pct ÷ 100)` over the scenario's categories; `stressed = baseline + increase` | food 65,000 × 15% = 9,750; 150,000 → 159,750 | MISSING_APIS.pdf p. 8 |
+| BR-22 | Buffer impact in months (v0.4) | `−round_half_up(12 × increase ÷ baselineTotal, 1 dp)`: a year of the increase, in months of the baseline basket; `null` if the basket is 0 | −(12 × 9,750 ÷ 150,000) = −0.8 | Defined by the backend [I]: the PDF's −1.2 cannot be derived from its request (no savings or income) |
+| BR-23 | District comparison (v0.4) | `net = totalB − totalA`; `pct = round_half_up(net ÷ totalA × 100, 1 dp)`; per-category `B − A`; `multiplier = round_half_up(totalB ÷ totalA, 3 dp)`; ratios `null` if totalA is 0 | PDF baskets: −35,000, −23.3, 0.767 | MISSING_APIS.pdf p. 7 |
 
 **Money** is whole RWF integers ([E] no decimals anywhere). **Percentages** shown to users are integers (20%) or 1-dp ratios (83.3%). Rounding modes are **[U] Q-17**.
 

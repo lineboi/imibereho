@@ -197,3 +197,117 @@ def budget_comparison(
         largest_above=above,
         largest_below=below,
     )
+
+
+# --- Contract v0.4 (MISSING_APIS.pdf): resilience simulator, agro projection, stress test ---
+
+WEEKS_PER_YEAR: Final = 52
+MONTHS_PER_YEAR: Final = 12
+SCORE_BASE: Final = 70
+SCORE_BASE_MIN: Final = 45
+SCORE_BASE_MAX: Final = 75
+SCORE_GAP_STEP: Final = 2_000  # RWF of raw monthly gap per score point
+SCORE_PER_LEVER: Final = 7
+SCORE_GAP_CLOSED_BONUS: Final = 8
+SCORE_MAX: Final = 95
+
+
+def monthly_projection(per_meal: int, meals_per_week: int) -> int:
+    """BR-20: per-meal saving × meals per week × 52 ÷ 12, whole RWF rounded half up.
+
+    52/12 is the exact average number of weeks in a month (4.333…). Negative per-meal savings
+    (a swap that costs more) give a negative projection, rounded half away from zero.
+    """
+    _require_non_negative(meals_per_week=meals_per_week)
+    exact = Decimal(per_meal * meals_per_week * WEEKS_PER_YEAR) / MONTHS_PER_YEAR
+    return int(_quantise(exact, Decimal(1)))
+
+
+THREE_DECIMALS: Final = Decimal("0.001")
+
+
+def percent_increase(amount: int, pct: int) -> int:
+    """BR-21: amount × pct ÷ 100, whole RWF rounded half up, in integer arithmetic."""
+    _require_non_negative(amount=amount, pct=pct)
+    return (amount * pct + 50) // 100
+
+
+def buffer_impact_months(monthly_increase: int, baseline_total: int) -> Decimal | None:
+    """BR-22: −(12 × monthly increase ÷ baseline total), to 1 dp half up.
+
+    A year of the increase, in months of the baseline basket; `None` for an empty basket.
+    """
+    _require_non_negative(monthly_increase=monthly_increase, baseline_total=baseline_total)
+    if baseline_total == 0:
+        return None
+    months = _quantise(Decimal(MONTHS_PER_YEAR * monthly_increase) / baseline_total, ONE_DECIMAL)
+    return -months if months else months  # keep 0.0, never −0.0
+
+
+@dataclass(frozen=True, slots=True)
+class DistrictVariance:
+    net_difference: int
+    percentage_difference: Decimal | None
+    category_differences: dict[str, int]
+    cost_of_living_multiplier: Decimal | None
+
+
+def district_variance(
+    category_order: Sequence[str], basket_a: Mapping[str, int], basket_b: Mapping[str, int]
+) -> DistrictVariance:
+    """BR-23: district B against district A, per category and in total.
+
+    netDifference = total B − total A; percentageDifference = net ÷ total A × 100 (1 dp half
+    up); multiplier = total B ÷ total A (3 dp half up). Both are `None` when total A is 0.
+    """
+    total_a = sum(basket_a[code] for code in category_order)
+    total_b = sum(basket_b[code] for code in category_order)
+    net = total_b - total_a
+    percentage = _quantise(Decimal(net * 100) / total_a, ONE_DECIMAL) if total_a else None
+    multiplier = _quantise(Decimal(total_b) / total_a, THREE_DECIMALS) if total_a else None
+    return DistrictVariance(
+        net_difference=net,
+        percentage_difference=percentage,
+        category_differences={code: basket_b[code] - basket_a[code] for code in category_order},
+        cost_of_living_multiplier=multiplier,
+    )
+
+
+def spread_monthly(amount: int, months: int) -> int:
+    """BR-17: a one-off cost spread evenly over `months`, whole RWF rounded half up."""
+    _require_non_negative(amount=amount)
+    if months < 1:
+        raise ValueError("months must be at least 1")
+    return (2 * amount + months) // (2 * months)
+
+
+def net_monthly_gap(raw_gap: int, relief: int) -> int:
+    """BR-18: max(0, raw gap − monthly coping relief)."""
+    _require_non_negative(raw_gap=raw_gap, relief=relief)
+    return max(0, raw_gap - relief)
+
+
+@dataclass(frozen=True, slots=True)
+class ResilienceScore:
+    baseline: int
+    score: int
+
+    @property
+    def change(self) -> int:
+        return self.score - self.baseline
+
+
+def resilience_score(raw_gap: int, active_levers: int, net_gap: int) -> ResilienceScore:
+    """BR-19 (illustrative concept score, not validated; based on the frontend's heuristic).
+
+    baseline = clamp(70 − round(raw gap ÷ 2,000), 45, 75), rounded half up;
+    score = min(95, baseline + 7 × active levers + 8 if levers close a positive raw gap).
+    Unlike the frontend, the +8 needs a gap that was closed, so doing nothing never scores.
+    """
+    _require_non_negative(raw_gap=raw_gap, active_levers=active_levers, net_gap=net_gap)
+    penalty = (raw_gap + SCORE_GAP_STEP // 2) // SCORE_GAP_STEP
+    baseline = max(SCORE_BASE_MIN, min(SCORE_BASE_MAX, SCORE_BASE - penalty))
+    bonus = SCORE_GAP_CLOSED_BONUS if raw_gap > 0 and net_gap == 0 else 0
+    return ResilienceScore(
+        baseline, min(SCORE_MAX, baseline + SCORE_PER_LEVER * active_levers + bonus)
+    )

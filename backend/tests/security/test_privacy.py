@@ -104,6 +104,22 @@ def test_calculation_requests_write_nothing(db_client: TestClient, test_database
                 "eligibleHouseholds": 1_000,
             },
         )
+        db_client.post(
+            "/api/v1/calculations/resilience-simulation",
+            json={
+                "baseline": {"monthlyIncome": 123_456, "monthlyEssentials": 1, "savings": 2},
+                "shock": {"type": "medical_emergency", "durationMonths": 2, "amount": 7_000},
+                "activeCopingLevers": ["ibimina_tontine"],
+            },
+        )
+        db_client.post(
+            "/api/v1/calculations/agro-savings-projection",
+            json={"swapId": "rice-to-sweet-potato", "mealsPerWeek": 5, "householdSize": 3},
+        )
+        db_client.post(
+            "/api/v1/calculations/stress-test",
+            json={"district": "gasabo", "householdSize": 4, "scenario": "rent_surge_10"},
+        )
     with test_database.read_only_session() as session:
         assert session.scalar(select(func.count()).select_from(SyntheticHousehold)) == before
     assert check(test_database) == []  # every table still equals the seed exactly

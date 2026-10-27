@@ -37,6 +37,10 @@ Stack: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (typed), Alembic, Postgre
 | `GET /api/v1/dashboard/filters`, `GET /api/v1/dashboard/overview` | §5 | `geography=all` only ([PD] Q-14) |
 | `POST /api/v1/calculations/budget-comparison` | §6 (optional) | See open item below |
 | `GET /api/v1/nisr/sources`, `GET /api/v1/nisr/financial-inclusion/national`, `GET /api/v1/nisr/financial-inclusion/districts` | **v0.3** §10 (agreed 2026-10-27) | Official FinScope 2024 statistics with provenance; `isIllustrative: false`. See [`docs/api/nisr-financial-inclusion.md`](docs/api/nisr-financial-inclusion.md) |
+| `GET /api/v1/nutrition/indyo-yuzuye`, `GET /api/v1/agro/harvest-calendar`, `GET /api/v1/market/shopping-checklist` | **v0.4** §11.5 (frontend sign-off pending) | `status: "awaiting_validated_data"` with empty or null content: no cited source yet. The PDF's account and tracker endpoints are not served (Q-02/Q-04, §11.4) |
+| `POST /api/v1/calculations/stress-test`, `GET /api/v1/calculations/district-comparison`, `GET /api/v1/districts/{code}/basket-details` | **v0.4** §11.3 (frontend sign-off pending) | On the one illustrative benchmark basket (BR-21 to BR-23); staple prices and market hub unavailable (`null`) |
+| `POST /api/v1/calculations/agro-savings-projection` | **v0.4** §11.2 (frontend sign-off pending) | Monthly saving from the seeded illustrative swap (BR-20); 404 `swap-not-found` |
+| `GET /api/v1/shocks/catalog`, `POST /api/v1/calculations/resilience-simulation` | **v0.4** §11.1 (frontend sign-off pending) | Illustrative shock catalogue and coping-lever simulation (BR-17 to BR-19); stateless |
 | `GET /api/v1/nisr/poverty`, `GET /api/v1/nisr/health-insurance` | **v0.3** §10 (agreed 2026-10-27) | Official NISR EICV7 2023/24 estimates (Tables A9.23, A3.7) with standard errors and 95% CIs; `isIllustrative: false`. Same guide |
 
 Not built: the optional `GET /api/v1/methodology` and `GET /api/v1/demo-household` (each has a

@@ -3,11 +3,14 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    agro,
     benchmarks,
     budget,
     dashboard,
+    district_advisor,
     nisr,
     policy_scenarios,
+    resilience,
     seasonal_swaps,
     shocks,
     vulnerability,
@@ -18,7 +21,10 @@ for module in (
     benchmarks,
     budget,
     shocks,
+    resilience,
     seasonal_swaps,
+    agro,
+    district_advisor,
     vulnerability,
     policy_scenarios,
     dashboard,
