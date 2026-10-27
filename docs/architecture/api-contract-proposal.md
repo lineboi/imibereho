@@ -1,8 +1,9 @@
-# API Contract — Imibereho (contract v0.2 rev 2, with the v0.3 official-statistics extension)
+# API Contract — Imibereho (contract v0.2 rev 2, with the v0.3 and v0.4 extensions)
 
 > **This is the single authoritative frontend–backend API contract.** If any other document (`backend-requirements.md`, `IMPLEMENTATION_PLAN.md`, the project document) disagrees with it, this file wins and the other document is corrected.
 > **Status: v0.2, backend proposal, awaiting frontend sign-off.** Nothing here is implemented yet. Once frontend and backend agree, the status becomes "agreed". After that, changes need a new contract version and a note in §9.
 > **Status of v0.3 (§10, official published statistics): agreed.** v0.3 was agreed by the frontend teammate on 27 October 2026. The approval covers contract v0.3 only; it does not cover v0.2 rev 2, whose status above is unchanged.
+> **Status of v0.4 (§11, from `MISSING_APIS.pdf`): implemented by the backend at the project owner's direction (2026-10-27); frontend sign-off pending.**
 > **Basis:** the Figma screens ([design-inventory.md](../figma/design-inventory.md)), [backend-requirements.md](./backend-requirements.md), and the resolutions of Q-01, Q-02, Q-04 and Q-15 in [open-questions.md](../requirements/open-questions.md).
 >
 > **Evidence labels** (same as the other docs, plus one):
@@ -450,6 +451,7 @@ Rate limiting (429) is also optional. Every other code in §1.3 applies to all e
 | 0.2 rev 2 | 2026-10-24 | Pre-sign-off corrections; v0.2 has not yet been agreed, so the version number is kept. Changes: `/health` is the platform health check; `/ready` gains a `checks` object and an explicit pre-seed rule (§2). Malformed-JSON body fixed exactly (§1.3). Validation runs before lookup. The 404 `district-not-found` rule is narrowed to the `district` and `districtCode` parameters; `geography` is always 422. Query-integer pattern `^[0-9]+$` and body booleans rejected (§1.2). Every numeric field is a JSON number (§1). `/dashboard/filters` periods use `code` instead of `id`. The `period` and `householdGroup` rules are spelled out for both vulnerability endpoints. |
 | 0.2 | 2026-10-24 | Q-01, Q-02, Q-04 and Q-15 resolved; the Option B and auth variants removed. `meta` added to every data response, including `/dashboard/filters` and `/methodology`. Error format reconciled: `unknown_field` added; unknown district → 404 (narrowed in rev 2 to the `district` and `districtCode` parameters); unknown filter or enum value → 422 `unknown_value`; `benchmark-not-available` and `not-ready` added. Number parsing rules added (§1.2). Household-shock gains `savingsExhausted`, and `runwayMonths` is 1 dp or `null`. Policy-scenario gains `baselineUsed`; `savingsAfterHorizon` stays BR-07 as written and can be negative. Benchmarks cover household size 4 only. Scores are integers with `band1`–`band4` keys. `/dashboard/filters` offers defaults only; per-district geography is optional and needs a decision. `/methodology` returns structured data only and is optional. `budget-comparison` and `demo-household` added as optional. `/health` and `/ready` added at the root. `X-Request-ID`, CORS and an English-only response language added. |
 | 0.3 | 2026-10-27 | **Agreed** by the frontend teammate on 27 October 2026. The approval covers v0.3 only; v0.2 rev 2 is not covered and still awaits sign-off. Adds §10: the official published statistics endpoints `GET /api/v1/nisr/sources`, `/nisr/financial-inclusion/national`, `/nisr/financial-inclusion/districts`, `/nisr/poverty` and `/nisr/health-insurance`, with the official-statistics `meta` (`isIllustrative: false`, `dataKind`, `sourceIds`); `printedDecimals` for display rounding; NISR attribution for EICV7 and AFR attribution for FinScope; EICV7 and FinScope kept as separate datasets in charts and filters. |
+| 0.4 | 2026-10-27 | **Implemented by the backend at the project owner's direction; frontend sign-off pending.** Adds §11 from `MISSING_APIS.pdf`: `GET /api/v1/shocks/catalog` and `POST /api/v1/calculations/resilience-simulation` (§11.1); `POST /api/v1/calculations/agro-savings-projection` (§11.2); new 404 slug `swap-not-found`; `POST /api/v1/calculations/stress-test`, `GET /api/v1/calculations/district-comparison` (snake_case query parameters, as in the PDF) and `GET /api/v1/districts/{code}/basket-details` (§11.3); twelve account and tracker endpoints recorded as blocked by Q-02/Q-04 (§11.4); `nutrition/indyo-yuzuye`, `agro/harvest-calendar` and `market/shopping-checklist` served as `awaiting_validated_data` (§11.5); reconciliation of all 21 PDF endpoints (§11.6). |
 
 ## 10. Official published statistics (contract v0.3)
 
@@ -476,3 +478,118 @@ The endpoints follow §1 conventions (`/api/v1` prefix, problem+json errors, `X-
 - Contract v0.2 rev 2 (§1–§8) still awaits frontend sign-off.
 - §0 says the contract version is mirrored in OpenAPI `info.version`; the build still reports `0.2.0`. Whether it should report `0.3.0` while v0.2 rev 2 is unagreed is undecided.
 - The FinScope endpoints sit under the `/nisr/` path although AFR is FinScope's publisher; the response's `source.publisher` is authoritative for attribution.
+
+## 11. Contract v0.4: endpoints from `MISSING_APIS.pdf` (frontend sign-off pending)
+
+**Status.** Implemented by the backend at the project owner's direction on 2026-10-27, following the project owner's specification `MISSING_APIS.pdf` (26 October 2026). The frontend has not signed it off. Conventions are those of §1. The response envelope adds `meta` (`isIllustrative: true`, `methodologyVersion`) to the PDF's shapes. All values are illustrative calculations, not observations. The request bodies are processed and discarded (Q-02). There is no login (Q-04).
+
+Where the PDF's example and the implementation differ, the PDF's field names are kept and the smallest correction is listed under each endpoint.
+
+### 11.1 Resilience simulator
+
+**`GET /api/v1/shocks/catalog`.** No query parameters (any parameter gives 400 `unknown-parameter`).
+- **Response:** `{items, copingLevers, meta}`.
+  - **`items`** has the PDF's three shocks: `income_drop` (`defaultPct` 20, `defaultDuration` 3), `medical_emergency` (`defaultAmount` 45,000) and `school_fees` (`defaultAmount` 60,000). Each item carries `id`, `title`, `isLumpSum`, `defaultPct`, `defaultDuration` and `defaultAmount`, with `null` where a field doesn't apply.
+  - **`copingLevers`** is an addition to the PDF: `{id, title, kind: monthly_relief | one_off_support, amount}`. The levers are `trim_non_essentials` (12,000 per month), `seasonal_agro_swaps` (5,200 per month) and `ibimina_tontine` (25,000 once).
+  - **`meta`** includes `count`.
+- **Provenance:** the values come from the PDF's examples (page 9). `seasonal_agro_swaps` equals the §11.2 projection for the seeded swap at 3 meals a week; `trim_non_essentials` is 17,200 − 5,200. They live in `backend/app/core/resilience_catalog.py`.
+
+**`POST /api/v1/calculations/resilience-simulation`.**
+- **Request:** `{baseline{monthlyIncome, monthlyEssentials, savings}, shock{type, incomeReductionPct?, durationMonths, amount?}, activeCopingLevers[]}`.
+  - `incomeReductionPct` is required for `income_drop` and rejected for lump-sum shocks.
+  - `amount` (lump-sum shocks only) defaults to the catalogue value.
+  - `durationMonths` is required for every shock.
+  - Each lever may appear once.
+  - Lever amounts, totals and scores are never accepted from the client (extra field: `unknown_field`).
+- **Response:** the PDF's `rawMonthlyGap`, `copingReliefMonthly`, `lumpSumSupport`, `netMonthlyGap`, `totalEffectiveBuffer`, `runwayMonths`, `resilienceScore` and `scoreChange`. Additions: `shockCostMonthly`, `savingsUsed`, `savingsRemaining`, `savingsExhausted` (BR-04/05 over the duration), `assumptions` and `meta`.
+- **Formulas:** BR-02/03/04/06 and BR-17 to BR-19 (backend-requirements §2).
+- **Corrections to the PDF example:**
+  1. `runwayMonths` is `null` when `netMonthlyGap` is 0 (BR-06, as for `household-shock`), so the example gives `null`, not 14.2 (which is 85,000 ÷ the raw gap).
+  2. The score is BR-19, based on the frontend's heuristic (its +8 "gap closed" bonus needs a gap that levers closed). It gives 95 and `scoreChange` 28 for the example. The PDF shows 88 and "+26", which no formula in the repository reproduces.
+  3. `scoreChange` is an integer, not the string "+26" (§1).
+- **Errors:** 400 `malformed-request` or `unknown-parameter`; 405; 422 `validation` (`required`, `out_of_range`, `not_integer`, `unknown_value` for an unknown shock type or an unknown or duplicate lever, `unknown_field`).
+- **Unchanged:** `POST /calculations/household-shock`, with its `income_fall` type.
+
+### 11.2 Agro-savings projection
+
+**`POST /api/v1/calculations/agro-savings-projection`.**
+- **Request:** `{swapId, mealsPerWeek, householdSize}`, all required.
+  - `swapId`: 1–64 characters.
+  - `mealsPerWeek`: integer 1–21.
+  - `householdSize`: integer 1–20.
+- **Response:** the PDF's `swapId`, `perMealSavings` (BR-14 on the seeded swap's prices), `monthlyProjectedSavings` (BR-20) and `purchasingPowerEquivalents`. Additions: `purchasingPowerStatus`, `assumptions` and `meta`.
+- **Decisions, documented in `assumptions`:**
+  - **Rounding:** the month is the exact 52/12 weeks, rounded half up to whole RWF. That gives the PDF's 5,200; the frontend's 4.33 approximation gives 5,196.
+  - **Household size:** validated but not used to scale. The swap is priced per household meal, and there is no sourced scaling rule.
+  - **Months:** a swap resolves by `swapId` whatever its seeded month.
+  - **Purchasing power:** `purchasingPowerEquivalents` is `[]` with `purchasingPowerStatus: "awaiting_validated_data"`. The project has no sourced prices for water, bus rides or eggs, so the PDF's example items aren't served.
+- **Prices:** the seeded swap's prices are invented in the design ("not market observations").
+- **Errors:** 400 `malformed-request` or `unknown-parameter`; 404 `swap-not-found` (a new slug; validation runs first, so an invalid request with an unknown swap gives 422); 405; 422 `validation`.
+
+### 11.3 District Budget Advisor
+
+All three endpoints read the one illustrative benchmark basket. It is the same for every district at household size 4 ([PD] Q-32), so they say so in `assumptions` and never present it as observed district data. Other household sizes give 404 `benchmark-not-available`.
+
+**`POST /api/v1/calculations/stress-test`.**
+- **Request:** `{district, householdSize (1–20), scenario}`. `scenario` is `food_inflation_15` (food +15%) or `rent_surge_10` (housing +10%), from the PDF's page 8 text.
+- **Response:** the PDF's `baselineTotal`, `stressedTotal`, `monthlyIncrease` (BR-21) and `bufferImpactMonths` (BR-22), plus `assumptions` and `meta`.
+- **Correction:** the PDF's −1.2 can't be derived from its request, which has no savings or income. BR-22 defines the field as a year of the increase in months of the baseline basket, so the example gives −0.8.
+- **Errors:** 400; 404 `district-not-found` or `benchmark-not-available` (after validation); 405; 422 (`unknown_value` for an unknown scenario).
+
+**`GET /api/v1/calculations/district-comparison?district_a=&district_b=&household_size=`.**
+- **Query:** the PDF's snake_case names are kept, an exception to §1's camelCase rule. Any other parameter, including `districtA`, gives 400 `unknown-parameter`.
+- **Response:** the PDF's `districtA`/`districtB` `{code, name, total, breakdown{food, housing, transport, utilities, other}}` (`other` is the `other_essentials` category), `variance{netDifference, percentageDifference, categoryDifferences}` and `costOfLivingMultiplier` (BR-23), plus `assumptions` and `meta`.
+- **Two changes from the example:**
+  - `categoryDifferences` lists all five categories; the PDF's example lists three.
+  - With the uniform basket every difference is 0 and the multiplier is 1.0. The PDF's Musanze figures have no source and aren't served; BR-23 reproduces their arithmetic in tests.
+- **Errors:** 400; 404 `district-not-found` or `benchmark-not-available`; 405; 422.
+
+**`GET /api/v1/districts/{code}/basket-details`.** No query parameters.
+- **Response:**
+  - `districtCode`, plus `householdSize` (always 4).
+  - `referenceRentIndex` and `referenceTransitPass`: the benchmark's housing and transport lines (40,000 and 20,000, the PDF's example values).
+  - `staplePriceIndex{irishPotatoesPerKg, sweetPotatoesPerKg, redBeansPerKg}` and `primaryMarketHub`: **`null`**, because the project has no sourced staple prices or market hubs. `unavailableFields` lists them.
+  - `assumptions` and `meta`.
+- **Errors:** 400; 404 `district-not-found`; 405.
+
+### 11.4 Blocked by Q-02 and Q-04 (not served)
+
+These twelve PDF endpoints need accounts or server-side storage of a household's own data. Q-04 (no login, no `/auth/*` endpoints) and Q-02 (citizen data is never stored) are resolved decisions, so the routes aren't registered and an unknown path gives 404 `not-found`. Under Q-02 the tracker, profile and plan data stay on the device. A test (`test_privacy_blocked_pdf_endpoints_are_not_served`) keeps the routes out.
+
+| Endpoint | Needs |
+|---|---|
+| `POST /api/v1/auth/register`, `POST /api/v1/auth/login` | accounts, password hashes, tokens (Q-04) |
+| `GET /api/v1/user/profile`, `PUT /api/v1/user/profile` | a stored household profile tied to an account (Q-02, Q-04) |
+| `GET /api/v1/tracker/overview`, `GET /api/v1/tracker/daily-trend`, `GET /api/v1/tracker/burn-rate` | aggregates of stored transactions (Q-02) |
+| `GET /api/v1/tracker/transactions`, `POST /api/v1/tracker/transactions`, `PUT /api/v1/tracker/transactions/{id}`, `DELETE /api/v1/tracker/transactions/{id}` | stored transactions (Q-02) |
+| `POST /api/v1/user/resilience-plan` | a stored plan (Q-02) |
+
+Serving any of them needs the project owner to reopen Q-02 and Q-04 formally, with a privacy policy, consent, authentication, a write path and ownership checks.
+
+### 11.5 Awaiting a cited source
+
+These endpoints exist so the frontend can depend on a stable route, but the project has no cited source for their content. Each answers 200 with `status: "awaiting_validated_data"` and the PDF's fields present but empty (`[]`) or `null`, plus `assumptions` and `meta`. Nothing is filled in.
+
+- **`GET /api/v1/nutrition/indyo-yuzuye`** (no query parameters). Fields: `standard` ("Indyo Yuzuye"), `plateComponents` `[]` and `energyTip` `null`. It needs national dietary guidance with a citation.
+- **`GET /api/v1/agro/harvest-calendar`** (no query parameters). Fields: `activeSeason`, `seasonName` and `monthsRange` are `null`; `harvestHighlights` is `[]`. It needs an official season calendar. The PDF and the frontend mock already disagree on season months.
+- **`GET /api/v1/market/shopping-checklist?district=&household_size=`** (the PDF's snake_case names). The district is validated (404 `district-not-found`) and `household_size` must be 1–20 (422). Fields: `items` is `[]`; `totalEstimatedBasket`, `unoptimizedBasket` and `estimatedSavings` are `null`. It needs sourced district market prices.
+
+When a cited source is added, `status` becomes `"available"` and the fields fill in without any shape change.
+
+### 11.6 Reconciliation with `MISSING_APIS.pdf` (21 endpoints)
+
+| # | Endpoint | Outcome |
+|---|---|---|
+| 1–2 | `POST /auth/register`, `POST /auth/login` | Blocked: Q-04 (§11.4) |
+| 3–4 | `GET`/`PUT /user/profile` | Blocked: Q-02/Q-04 (§11.4) |
+| 5–11 | `/tracker/*` (overview, transactions ×4, daily-trend, burn-rate) | Blocked: Q-02 (§11.4) |
+| 12 | `GET /calculations/district-comparison` | Implemented on the illustrative benchmark (§11.3); real differences need per-district data |
+| 13 | `GET /districts/{code}/basket-details` | Partly implemented: rent and transit from the benchmark; staple prices and market hub awaiting a source (§11.3) |
+| 14 | `POST /calculations/stress-test` | Implemented (§11.3); `bufferImpactMonths` defined by BR-22 |
+| 15 | `GET /shocks/catalog` | Implemented (§11.1) |
+| 16 | `POST /calculations/resilience-simulation` | Implemented (§11.1); runway and score corrections listed there |
+| 17 | `POST /user/resilience-plan` | Blocked: Q-02 (§11.4) |
+| 18 | `POST /calculations/agro-savings-projection` | Implemented (§11.2); purchasing-power equivalents awaiting sourced prices |
+| 19 | `GET /nutrition/indyo-yuzuye` | Route served; content awaiting a source (§11.5) |
+| 20 | `GET /agro/harvest-calendar` | Route served; content awaiting a source (§11.5) |
+| 21 | `GET /market/shopping-checklist` | Route served; content awaiting sourced prices (§11.5) |
