@@ -197,3 +197,67 @@ def budget_comparison(
         largest_above=above,
         largest_below=below,
     )
+
+
+# --- Contract v0.4 (MISSING_APIS.pdf): resilience simulator, agro projection, stress test ---
+
+WEEKS_PER_YEAR: Final = 52
+MONTHS_PER_YEAR: Final = 12
+SCORE_BASE: Final = 70
+SCORE_BASE_MIN: Final = 45
+SCORE_BASE_MAX: Final = 75
+SCORE_GAP_STEP: Final = 2_000  # RWF of raw monthly gap per score point
+SCORE_PER_LEVER: Final = 7
+SCORE_GAP_CLOSED_BONUS: Final = 8
+SCORE_MAX: Final = 95
+
+
+def monthly_projection(per_meal: int, meals_per_week: int) -> int:
+    """BR-20: per-meal saving × meals per week × 52 ÷ 12, whole RWF rounded half up.
+
+    52/12 is the exact average number of weeks in a month (4.333…). Negative per-meal savings
+    (a swap that costs more) give a negative projection, rounded half away from zero.
+    """
+    _require_non_negative(meals_per_week=meals_per_week)
+    exact = Decimal(per_meal * meals_per_week * WEEKS_PER_YEAR) / MONTHS_PER_YEAR
+    return int(_quantise(exact, Decimal(1)))
+
+
+def spread_monthly(amount: int, months: int) -> int:
+    """BR-17: a one-off cost spread evenly over `months`, whole RWF rounded half up."""
+    _require_non_negative(amount=amount)
+    if months < 1:
+        raise ValueError("months must be at least 1")
+    return (2 * amount + months) // (2 * months)
+
+
+def net_monthly_gap(raw_gap: int, relief: int) -> int:
+    """BR-18: max(0, raw gap − monthly coping relief)."""
+    _require_non_negative(raw_gap=raw_gap, relief=relief)
+    return max(0, raw_gap - relief)
+
+
+@dataclass(frozen=True, slots=True)
+class ResilienceScore:
+    baseline: int
+    score: int
+
+    @property
+    def change(self) -> int:
+        return self.score - self.baseline
+
+
+def resilience_score(raw_gap: int, active_levers: int, net_gap: int) -> ResilienceScore:
+    """BR-19 (illustrative concept score, not validated; based on the frontend's heuristic).
+
+    baseline = clamp(70 − round(raw gap ÷ 2,000), 45, 75), rounded half up;
+    score = min(95, baseline + 7 × active levers + 8 if levers close a positive raw gap).
+    Unlike the frontend, the +8 needs a gap that was closed, so doing nothing never scores.
+    """
+    _require_non_negative(raw_gap=raw_gap, active_levers=active_levers, net_gap=net_gap)
+    penalty = (raw_gap + SCORE_GAP_STEP // 2) // SCORE_GAP_STEP
+    baseline = max(SCORE_BASE_MIN, min(SCORE_BASE_MAX, SCORE_BASE - penalty))
+    bonus = SCORE_GAP_CLOSED_BONUS if raw_gap > 0 and net_gap == 0 else 0
+    return ResilienceScore(
+        baseline, min(SCORE_MAX, baseline + SCORE_PER_LEVER * active_levers + bonus)
+    )

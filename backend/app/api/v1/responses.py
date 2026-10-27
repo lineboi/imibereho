@@ -25,7 +25,10 @@ class ProblemDetails(BaseModel):
 
 _DESCRIPTIONS: Final = {
     400: "Malformed JSON (`malformed-request`) or an unknown query parameter (`unknown-parameter`)",
-    404: "Unknown district (`district-not-found`) or no benchmark (`benchmark-not-available`)",
+    404: (
+        "Unknown district (`district-not-found`), no benchmark (`benchmark-not-available`) "
+        "or unknown swap (`swap-not-found`)"
+    ),
     422: "Field-level validation failure (`validation`)",
     500: "Unexpected error (`internal`); quote X-Request-ID when reporting",
 }

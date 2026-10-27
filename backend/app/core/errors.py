@@ -110,6 +110,15 @@ class BenchmarkNotAvailableError(ProblemError):
         super().__init__("No benchmark exists for this district and household size.")
 
 
+class SwapNotFoundError(ProblemError):
+    slug = "swap-not-found"
+    title = "Swap not found"
+    status = 404
+
+    def __init__(self) -> None:
+        super().__init__("No seasonal swap has this id.")
+
+
 class RequestValidationProblem(ProblemError):
     """A 422 raised by a service, for rules that need reference data (validated before lookups)."""
 

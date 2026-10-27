@@ -40,6 +40,10 @@ EXTENSION_ENDPOINTS: Final = frozenset(
         ("GET", "/api/v1/nisr/financial-inclusion/districts"),
         ("GET", "/api/v1/nisr/poverty"),
         ("GET", "/api/v1/nisr/health-insurance"),
+        # Contract v0.4 (contract §11, from MISSING_APIS.pdf; frontend sign-off pending).
+        ("GET", "/api/v1/shocks/catalog"),
+        ("POST", "/api/v1/calculations/resilience-simulation"),
+        ("POST", "/api/v1/calculations/agro-savings-projection"),
     }
 )
 # What this build ships. Optional endpoints not built: /methodology, /demo-household.

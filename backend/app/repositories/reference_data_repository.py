@@ -81,6 +81,14 @@ class ReferenceDataRepository:
             .order_by(SeasonalSwap.sort_order, SeasonalSwap.id)
         ).all()
 
+    def get_swap(self, swap_id: str) -> SeasonalSwap | None:
+        """One swap by id, for the current methodology version, whatever its month or district."""
+        return self._session.scalars(
+            select(SeasonalSwap).where(
+                SeasonalSwap.methodology_version == self._version, SeasonalSwap.id == swap_id
+            )
+        ).one_or_none()
+
     def list_tips(self, district_code: str, month: int) -> Sequence[SeasonalTip]:
         return self._session.scalars(
             select(SeasonalTip)
