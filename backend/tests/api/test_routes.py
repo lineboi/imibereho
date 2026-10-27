@@ -44,6 +44,9 @@ EXTENSION_ENDPOINTS: Final = frozenset(
         ("GET", "/api/v1/shocks/catalog"),
         ("POST", "/api/v1/calculations/resilience-simulation"),
         ("POST", "/api/v1/calculations/agro-savings-projection"),
+        ("POST", "/api/v1/calculations/stress-test"),
+        ("GET", "/api/v1/calculations/district-comparison"),
+        ("GET", "/api/v1/districts/{code}/basket-details"),
     }
 )
 # What this build ships. Optional endpoints not built: /methodology, /demo-household.

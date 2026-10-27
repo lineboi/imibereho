@@ -223,6 +223,56 @@ def monthly_projection(per_meal: int, meals_per_week: int) -> int:
     return int(_quantise(exact, Decimal(1)))
 
 
+THREE_DECIMALS: Final = Decimal("0.001")
+
+
+def percent_increase(amount: int, pct: int) -> int:
+    """BR-21: amount × pct ÷ 100, whole RWF rounded half up, in integer arithmetic."""
+    _require_non_negative(amount=amount, pct=pct)
+    return (amount * pct + 50) // 100
+
+
+def buffer_impact_months(monthly_increase: int, baseline_total: int) -> Decimal | None:
+    """BR-22: −(12 × monthly increase ÷ baseline total), to 1 dp half up.
+
+    A year of the increase, in months of the baseline basket; `None` for an empty basket.
+    """
+    _require_non_negative(monthly_increase=monthly_increase, baseline_total=baseline_total)
+    if baseline_total == 0:
+        return None
+    months = _quantise(Decimal(MONTHS_PER_YEAR * monthly_increase) / baseline_total, ONE_DECIMAL)
+    return -months if months else months  # keep 0.0, never −0.0
+
+
+@dataclass(frozen=True, slots=True)
+class DistrictVariance:
+    net_difference: int
+    percentage_difference: Decimal | None
+    category_differences: dict[str, int]
+    cost_of_living_multiplier: Decimal | None
+
+
+def district_variance(
+    category_order: Sequence[str], basket_a: Mapping[str, int], basket_b: Mapping[str, int]
+) -> DistrictVariance:
+    """BR-23: district B against district A, per category and in total.
+
+    netDifference = total B − total A; percentageDifference = net ÷ total A × 100 (1 dp half
+    up); multiplier = total B ÷ total A (3 dp half up). Both are `None` when total A is 0.
+    """
+    total_a = sum(basket_a[code] for code in category_order)
+    total_b = sum(basket_b[code] for code in category_order)
+    net = total_b - total_a
+    percentage = _quantise(Decimal(net * 100) / total_a, ONE_DECIMAL) if total_a else None
+    multiplier = _quantise(Decimal(total_b) / total_a, THREE_DECIMALS) if total_a else None
+    return DistrictVariance(
+        net_difference=net,
+        percentage_difference=percentage,
+        category_differences={code: basket_b[code] - basket_a[code] for code in category_order},
+        cost_of_living_multiplier=multiplier,
+    )
+
+
 def spread_monthly(amount: int, months: int) -> int:
     """BR-17: a one-off cost spread evenly over `months`, whole RWF rounded half up."""
     _require_non_negative(amount=amount)
