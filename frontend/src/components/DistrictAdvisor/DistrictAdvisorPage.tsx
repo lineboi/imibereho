@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Language, NavTab } from '../../types';
 import {
   ADVISOR_TRANSLATIONS,
@@ -8,6 +8,12 @@ import {
   type ComparisonMode,
   type StressTestScenario,
 } from '../../data/mockAdvisorData';
+import {
+  fetchBudgetBenchmark,
+  fetchDistrictVulnerability,
+  type BudgetBenchmarkData,
+  type DistrictVulnerabilityResponse,
+} from '../../services/api';
 import { SearchableDistrictSelect } from './SearchableDistrictSelect';
 import { DistrictComparisonCard } from './DistrictComparisonCard';
 import { MyPlanComparisonCard } from './MyPlanComparisonCard';
@@ -90,9 +96,57 @@ export const DistrictAdvisorPage: React.FC<DistrictAdvisorPageProps> = ({
   // Simulator Modal State
   const [simulatorModalOpen, setSimulatorModalOpen] = useState(false);
 
-  // Benchmark data calculated client-side for the exact entered household size
-  const baseBenchmarkA = getDistrictBenchmark(districtAId, householdSizeNumber);
-  const baseBenchmarkB = getDistrictBenchmark(districtBId, householdSizeNumber);
+  // Backend live connection state
+  const [backendBenchmarkA, setBackendBenchmarkA] = useState<BudgetBenchmarkData | null>(null);
+  const [backendBenchmarkB, setBackendBenchmarkB] = useState<BudgetBenchmarkData | null>(null);
+  const [vulnerabilityA, setVulnerabilityA] = useState<DistrictVulnerabilityResponse | null>(null);
+  const [isBackendLive, setIsBackendLive] = useState<boolean>(false);
+
+  // Live call to GET /api/v1/budget-benchmarks and GET /api/v1/district-vulnerability
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([
+      fetchBudgetBenchmark(districtAId, householdSizeNumber),
+      fetchBudgetBenchmark(districtBId, householdSizeNumber),
+      fetchDistrictVulnerability(districtAId),
+    ]).then(([benchA, benchB, vuln]) => {
+      if (!isMounted) return;
+      if (benchA) {
+        setBackendBenchmarkA(benchA);
+        setIsBackendLive(true);
+      }
+      if (benchB) setBackendBenchmarkB(benchB);
+      if (vuln) setVulnerabilityA(vuln);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [districtAId, districtBId, householdSizeNumber]);
+
+  // Benchmark data: seamlessly uses live backend benchmark data if available, falling back to local formulas
+  const rawBaseBenchmarkA = getDistrictBenchmark(districtAId, householdSizeNumber);
+  const baseBenchmarkA = backendBenchmarkA
+    ? {
+        ...rawBaseBenchmarkA,
+        baselineTotal: backendBenchmarkA.total,
+        lines: rawBaseBenchmarkA.lines.map((l) => {
+          const match = backendBenchmarkA.lines.find((bl) => bl.categoryCode === l.categoryCode);
+          return match ? { ...l, amount: match.monthlyAmount } : l;
+        }),
+      }
+    : rawBaseBenchmarkA;
+
+  const rawBaseBenchmarkB = getDistrictBenchmark(districtBId, householdSizeNumber);
+  const baseBenchmarkB = backendBenchmarkB
+    ? {
+        ...rawBaseBenchmarkB,
+        baselineTotal: backendBenchmarkB.total,
+        lines: rawBaseBenchmarkB.lines.map((l) => {
+          const match = backendBenchmarkB.lines.find((bl) => bl.categoryCode === l.categoryCode);
+          return match ? { ...l, amount: match.monthlyAmount } : l;
+        }),
+      }
+    : rawBaseBenchmarkB;
 
   // Dynamic scenario adjustment
   const applyScenario = (bench: typeof baseBenchmarkA) => {
@@ -154,6 +208,21 @@ export const DistrictAdvisorPage: React.FC<DistrictAdvisorPageProps> = ({
           <p className="text-[13.5px] sm:text-[15px] text-[#4F6257] leading-relaxed max-w-2xl">
             {t.subheadline}
           </p>
+
+          {/* Live Backend Connection Indicator */}
+          {isBackendLive && (
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="bg-[#EBF5EE] text-[#1E5E45] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#D0E5D8] flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#1E5E45] animate-pulse" />
+                <span>Backend: GET /api/v1/budget-benchmarks (Live 200 OK)</span>
+              </span>
+              {vulnerabilityA && (
+                <span className="bg-[#FAF3E8] text-[#925B1D] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#E9D9C3]">
+                  {vulnerabilityA.name} Vulnerability Score: {vulnerabilityA.score}/100 ({vulnerabilityA.band})
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Mode Switcher Tabs */}
