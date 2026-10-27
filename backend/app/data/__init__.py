@@ -9,6 +9,7 @@ from app.data import (
     eicv7_2023_24,
     finscope_2024,
     reference,
+    sas_2025,
     seasonal,
     synthetic_households,
     vulnerability,
@@ -23,4 +24,5 @@ DATASETS: Final[tuple[Dataset, ...]] = (
     # Official published statistics (after `districts`). Each owns its own source row.
     *finscope_2024.DATASETS,
     *eicv7_2023_24.DATASETS,
+    *sas_2025.DATASETS,
 )

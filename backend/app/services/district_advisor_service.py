@@ -1,22 +1,39 @@
-"""District Budget Advisor (contract v0.4 §11.3; BR-21 to BR-23 on the benchmark basket).
+"""District Budget Advisor (contract v0.4 §11.3 and §11.7; BR-21 to BR-24).
 
-Read-only. Every amount is the one illustrative benchmark basket, which is the same for every
-district at household size 4 ([PD] Q-32), so comparisons of two districts show no difference.
-That is reported as it is; no district-specific numbers are invented.
+Read-only and illustrative. Gasabo and Musanze use the MISSING_APIS.pdf example baskets
+(owner-approved 2026-10-27; `app/core/pdf_examples.py`). Every other district uses the one
+seeded benchmark basket, the same for every district at household size 4 ([PD] Q-32), so two
+such districts show no difference. That is reported as it is; no other district-specific
+numbers are invented. Other household sizes scale the size-4 basket line by line with the
+square-root equivalence scale (BR-24), approved by the project owner on 2026-10-27.
 """
 
-from typing import Annotated, Final
+from typing import Annotated, Final, NamedTuple
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from app.calculations import buffer_impact_months, district_variance, percent_increase
+from app.calculations import (
+    buffer_impact_months,
+    district_variance,
+    percent_increase,
+    square_root_scaled,
+)
 from app.core.constants import METHODOLOGY_VERSION
+from app.core.pdf_examples import (
+    DISTRICT_BASKETS,
+    EXAMPLE_HOUSEHOLD_SIZE,
+    MARKET_HUBS,
+    PROVENANCE,
+    STAPLE_PRICES,
+    Provenance,
+)
 from app.core.stress_scenarios import STRESS_SCENARIOS
+from app.data.reference import BENCHMARK_HOUSEHOLD_SIZE
 from app.db.session import get_read_session
 from app.repositories.benchmark_repository import BenchmarkRepository
 from app.repositories.reference_data_repository import ReferenceDataRepository
-from app.schemas.common import Meta
+from app.schemas.common import ExampleMeta
 from app.schemas.district_advisor import (
     BasketDetailsResponse,
     Breakdown,
@@ -31,9 +48,29 @@ from app.schemas.district_advisor import (
 from app.services.benchmark_service import BenchmarkService, require_district
 
 CATEGORY_ORDER: Final = ("food", "housing", "transport", "utilities", "other_essentials")
-BASKET_DETAILS_HOUSEHOLD_SIZE: Final = 4  # the only seeded benchmark size ([PD] Q-32)
+BASKET_DETAILS_HOUSEHOLD_SIZE: Final = EXAMPLE_HOUSEHOLD_SIZE  # the PDF gives the drawer no size
+SCALED: Final = "household_size_scaled_from_size_4_by_square_root_equivalence"
 UNIFORM_BASKET: Final = "benchmark_is_one_illustrative_basket_for_every_district"
+EXAMPLE_BASKET: Final = "gasabo_and_musanze_baskets_are_missing_apis_pdf_examples"
 NOT_OBSERVED: Final = "not_observed_district_data"
+# The PDF's −1.2 for its own example is not produced by any formula it states (contract §11.3).
+NOT_THE_PDF_FIGURE: Final = "buffer_impact_is_br_22_the_pdf_example_figure_is_not_derivable"
+
+
+class _Basket(NamedTuple):
+    code: str
+    name: str
+    amounts: dict[str, int]
+    from_example: bool  # a MISSING_APIS.pdf example basket rather than the shared benchmark
+
+
+def _basket_notes(*baskets: _Basket) -> tuple[list[str], Provenance | None]:
+    """The basket assumptions, and the provenance if any basket is a PDF example."""
+    from_example = [basket.from_example for basket in baskets]
+    notes = [EXAMPLE_BASKET] if any(from_example) else []
+    if not all(from_example):
+        notes.append(UNIFORM_BASKET)
+    return [*notes, NOT_OBSERVED], PROVENANCE if any(from_example) else None
 
 
 def _breakdown(amounts: dict[str, int]) -> Breakdown:
@@ -51,46 +88,62 @@ class DistrictAdvisorService:
         self._reference = reference
         self._benchmarks = benchmarks
 
-    def _basket(self, district_code: str, household_size: int) -> tuple[str, str, dict[str, int]]:
+    def _basket(self, district_code: str, household_size: int) -> _Basket:
+        """The district's size-4 basket scaled to `household_size` (BR-24).
+
+        The MISSING_APIS.pdf example basket where the PDF gives one, else the seeded benchmark.
+        """
         district = require_district(self._reference, district_code)
-        amounts = self._benchmarks.reference_amounts(district.code, household_size)
-        return district.code, district.name, amounts
+        example = DISTRICT_BASKETS.get(district.code)
+        base = (
+            example
+            if example is not None
+            else self._benchmarks.reference_amounts(district.code, BENCHMARK_HOUSEHOLD_SIZE)
+        )
+        amounts = {
+            code: square_root_scaled(amount, household_size, BENCHMARK_HOUSEHOLD_SIZE)
+            for code, amount in base.items()
+        }
+        return _Basket(district.code, district.name, amounts, example is not None)
 
     def stress_test(self, request: StressTestRequest) -> StressTestResponse:
-        _, _, amounts = self._basket(request.district, request.household_size)
+        basket = self._basket(request.district, request.household_size)
         shocks = STRESS_SCENARIOS[request.scenario]
-        increase = sum(percent_increase(amounts[code], pct) for code, pct in shocks.items())
-        baseline = sum(amounts.values())
+        increase = sum(percent_increase(basket.amounts[code], pct) for code, pct in shocks.items())
+        baseline = sum(basket.amounts.values())
+        notes, provenance = _basket_notes(basket)
         return StressTestResponse(
             baseline_total=baseline,
             stressed_total=baseline + increase,
             monthly_increase=increase,
             buffer_impact_months=buffer_impact_months(increase, baseline),
             assumptions=[
-                UNIFORM_BASKET,
-                NOT_OBSERVED,
+                *notes,
+                SCALED,
                 "scenario_is_illustrative_not_a_forecast",
                 "buffer_impact_is_a_year_of_the_increase_in_months_of_the_baseline_basket",
+                NOT_THE_PDF_FIGURE,
             ],
-            meta=Meta(),
+            meta=ExampleMeta(provenance=provenance),
         )
 
     def compare(self, query: DistrictComparisonQuery) -> DistrictComparisonResponse:
-        code_a, name_a, basket_a = self._basket(query.district_a, query.household_size)
-        code_b, name_b, basket_b = self._basket(query.district_b, query.household_size)
-        variance = district_variance(CATEGORY_ORDER, basket_a, basket_b)
+        a = self._basket(query.district_a, query.household_size)
+        b = self._basket(query.district_b, query.household_size)
+        variance = district_variance(CATEGORY_ORDER, a.amounts, b.amounts)
+        notes, provenance = _basket_notes(a, b)
         return DistrictComparisonResponse(
             district_a=DistrictBasket(
-                code=code_a,
-                name=name_a,
-                total=sum(basket_a.values()),
-                breakdown=_breakdown(basket_a),
+                code=a.code,
+                name=a.name,
+                total=sum(a.amounts.values()),
+                breakdown=_breakdown(a.amounts),
             ),
             district_b=DistrictBasket(
-                code=code_b,
-                name=name_b,
-                total=sum(basket_b.values()),
-                breakdown=_breakdown(basket_b),
+                code=b.code,
+                name=b.name,
+                total=sum(b.amounts.values()),
+                breakdown=_breakdown(b.amounts),
             ),
             variance=Variance(
                 net_difference=variance.net_difference,
@@ -98,29 +151,37 @@ class DistrictAdvisorService:
                 category_differences=_breakdown(variance.category_differences),
             ),
             cost_of_living_multiplier=variance.cost_of_living_multiplier,
-            assumptions=[UNIFORM_BASKET, NOT_OBSERVED],
-            meta=Meta(),
+            assumptions=[*notes, SCALED],
+            meta=ExampleMeta(provenance=provenance),
         )
 
     def basket_details(self, district_code: str) -> BasketDetailsResponse:
-        code, _, amounts = self._basket(district_code, BASKET_DETAILS_HOUSEHOLD_SIZE)
+        basket = self._basket(district_code, BASKET_DETAILS_HOUSEHOLD_SIZE)
+        staples = STAPLE_PRICES.get(basket.code)
+        hub = MARKET_HUBS.get(basket.code)
+        notes, provenance = _basket_notes(basket)
+        unavailable = [
+            field
+            for field, value in (("staplePriceIndex", staples), ("primaryMarketHub", hub))
+            if value is None
+        ]
+        if unavailable:
+            notes.append("no_staple_prices_or_market_hub_in_the_pdf_for_this_district")
         return BasketDetailsResponse(
-            district_code=code,
+            status="awaiting_validated_data" if unavailable else "available",
+            district_code=basket.code,
             household_size=BASKET_DETAILS_HOUSEHOLD_SIZE,
-            reference_rent_index=amounts["housing"],
-            reference_transit_pass=amounts["transport"],
+            reference_rent_index=basket.amounts["housing"],
+            reference_transit_pass=basket.amounts["transport"],
             staple_price_index=StaplePriceIndex(
-                irish_potatoes_per_kg=None, sweet_potatoes_per_kg=None, red_beans_per_kg=None
+                irish_potatoes_per_kg=staples.irish_potatoes_per_kg if staples else None,
+                sweet_potatoes_per_kg=staples.sweet_potatoes_per_kg if staples else None,
+                red_beans_per_kg=staples.red_beans_per_kg if staples else None,
             ),
-            primary_market_hub=None,
-            unavailable_fields=["staplePriceIndex", "primaryMarketHub"],
-            assumptions=[
-                UNIFORM_BASKET,
-                NOT_OBSERVED,
-                "rent_and_transit_are_the_benchmark_housing_and_transport_lines",
-                "no_sourced_staple_prices_or_market_hubs",
-            ],
-            meta=Meta(),
+            primary_market_hub=hub,
+            unavailable_fields=unavailable,
+            assumptions=[*notes, "rent_and_transit_are_the_basket_housing_and_transport_lines"],
+            meta=ExampleMeta(provenance=provenance),
         )
 
 

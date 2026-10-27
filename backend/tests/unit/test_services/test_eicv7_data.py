@@ -329,8 +329,8 @@ def test_shared_tables_list_every_owner_parents_first() -> None:
     ]
     sources = shared["statistical_sources"]
     assert sources.column == "id"
-    assert sources.owned == {"finscope-2024", EICV7_SOURCE_ID}
-    assert sources.owners == ("finscope_2024", "eicv7_2023_24")
+    assert sources.owned == {"finscope-2024", EICV7_SOURCE_ID, "sas-2025"}
+    assert sources.owners == ("finscope_2024", "eicv7_2023_24", "sas_2025")
     assert shared["survey_estimates"].owned == {EICV7_SOURCE_ID}
 
 

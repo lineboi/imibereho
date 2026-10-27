@@ -5,7 +5,8 @@
 - `QueryModel`: query strings. Unknown parameters rejected (400 `unknown-parameter`).
 - `QueryInt`: digits only (`^[0-9]+$` after URL decoding), then bounds.
 - `JsonDecimal`: a `Decimal` always emitted as a JSON number, never a string.
-- `Meta` / `ListMeta`: the illustrative envelope.
+- `Meta` / `ListMeta`: the illustrative envelope; `ExampleMeta` / `ExampleListMeta` add the
+  provenance of owner-approved PDF example values.
 """
 
 import re
@@ -17,6 +18,7 @@ from pydantic.alias_generators import to_camel
 from pydantic_core import PydanticCustomError
 
 from app.core.constants import METHODOLOGY_VERSION, MONEY_MAX
+from app.core.pdf_examples import Provenance
 
 _DIGITS: Final = re.compile(r"[0-9]+")
 _MAX_DIGITS: Final = 12  # anything longer is far out of every bound; avoids huge int parsing
@@ -65,6 +67,19 @@ class Meta(ApiModel):
 
 
 class ListMeta(Meta):
+    count: int
+
+
+class ExampleMeta(Meta):
+    """The illustrative envelope of a response that may serve owner-approved PDF example values."""
+
+    provenance: Provenance | None = Field(
+        description="Set when the response serves MISSING_APIS.pdf example values (contract "
+        "§11.7); null when it serves none"
+    )
+
+
+class ExampleListMeta(ExampleMeta):
     count: int
 
 

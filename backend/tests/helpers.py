@@ -8,6 +8,10 @@ import httpx2 as httpx
 from app.core.constants import PROBLEM_TYPE_BASE
 
 META: Final = {"isIllustrative": True, "methodologyVersion": "0.1"}
+# Responses that serve owner-approved MISSING_APIS.pdf example values (contract §11.7).
+PROVENANCE: Final = "MISSING_APIS.pdf example, owner-approved"
+EXAMPLE_META: Final = {**META, "provenance": PROVENANCE}
+NO_EXAMPLE_META: Final = {**META, "provenance": None}
 
 # Plan §2.5: raw query values that must be 422 `not_integer`.
 NOT_INTEGER_QUERY_VALUES: Final = ("4.0", "4.5", "4e0", "%2B4", "-1", "%204", "0x4", "abc", "")

@@ -71,6 +71,7 @@ def test_both_sources_coexist_with_their_own_attribution(seeded: Database) -> No
         assert publishers == {
             "finscope-2024": "Access to Finance Rwanda (AFR)",
             "eicv7-2023-2024": "National Institute of Statistics of Rwanda (NISR)",
+            "sas-2025": "National Institute of Statistics of Rwanda (NISR)",
         }
         finscope, eicv7 = snapshot(session, "finscope-2024"), snapshot(session, "eicv7-2023-2024")
         assert len(finscope["financial_inclusion_indicators"]) == 11
@@ -144,7 +145,7 @@ def test_a_source_no_dataset_owns_is_detected_and_removed(seeded: Database) -> N
             insert(SurveyEstimate).values(_extra_estimate("unregistered-source", "rwanda"))
         )
     # Every dataset using a table that holds the row is reported, as for a global table.
-    assert check(seeded) == [FINSCOPE[0], EICV7[0]]
+    assert check(seeded) == [FINSCOPE[0], EICV7[0], "sas_2025"]
     forget(seeded, EICV7[0])
     seed(seeded)  # children are removed before their unowned source: no FK error
     with seeded.read_only_session() as session:
@@ -290,9 +291,9 @@ def test_changing_a_source_id_moves_its_rows_and_leaves_the_other_source_untouch
                 assert moved[name] == expected
         assert snapshot(session, other[1]) == other_before
     assert check(seeded, [dataset]) == []
-    # Against the real registry the new ID is unowned drift, reported for both sources; the
+    # Against the real registry the new ID is unowned drift, reported for every source dataset; the
     # fixture's reseed renames it back and must end at check() == [].
-    assert check(seeded) == [FINSCOPE[0], EICV7[0]]
+    assert check(seeded) == [FINSCOPE[0], EICV7[0], "sas_2025"]
 
 
 def _emptied(dataset: Dataset) -> Dataset:

@@ -451,7 +451,7 @@ Rate limiting (429) is also optional. Every other code in §1.3 applies to all e
 | 0.2 rev 2 | 2026-10-24 | Pre-sign-off corrections; v0.2 has not yet been agreed, so the version number is kept. Changes: `/health` is the platform health check; `/ready` gains a `checks` object and an explicit pre-seed rule (§2). Malformed-JSON body fixed exactly (§1.3). Validation runs before lookup. The 404 `district-not-found` rule is narrowed to the `district` and `districtCode` parameters; `geography` is always 422. Query-integer pattern `^[0-9]+$` and body booleans rejected (§1.2). Every numeric field is a JSON number (§1). `/dashboard/filters` periods use `code` instead of `id`. The `period` and `householdGroup` rules are spelled out for both vulnerability endpoints. |
 | 0.2 | 2026-10-24 | Q-01, Q-02, Q-04 and Q-15 resolved; the Option B and auth variants removed. `meta` added to every data response, including `/dashboard/filters` and `/methodology`. Error format reconciled: `unknown_field` added; unknown district → 404 (narrowed in rev 2 to the `district` and `districtCode` parameters); unknown filter or enum value → 422 `unknown_value`; `benchmark-not-available` and `not-ready` added. Number parsing rules added (§1.2). Household-shock gains `savingsExhausted`, and `runwayMonths` is 1 dp or `null`. Policy-scenario gains `baselineUsed`; `savingsAfterHorizon` stays BR-07 as written and can be negative. Benchmarks cover household size 4 only. Scores are integers with `band1`–`band4` keys. `/dashboard/filters` offers defaults only; per-district geography is optional and needs a decision. `/methodology` returns structured data only and is optional. `budget-comparison` and `demo-household` added as optional. `/health` and `/ready` added at the root. `X-Request-ID`, CORS and an English-only response language added. |
 | 0.3 | 2026-10-27 | **Agreed** by the frontend teammate on 27 October 2026. The approval covers v0.3 only; v0.2 rev 2 is not covered and still awaits sign-off. Adds §10: the official published statistics endpoints `GET /api/v1/nisr/sources`, `/nisr/financial-inclusion/national`, `/nisr/financial-inclusion/districts`, `/nisr/poverty` and `/nisr/health-insurance`, with the official-statistics `meta` (`isIllustrative: false`, `dataKind`, `sourceIds`); `printedDecimals` for display rounding; NISR attribution for EICV7 and AFR attribution for FinScope; EICV7 and FinScope kept as separate datasets in charts and filters. |
-| 0.4 | 2026-10-27 | **Implemented by the backend at the project owner's direction; frontend sign-off pending.** Adds §11 from `MISSING_APIS.pdf`: `GET /api/v1/shocks/catalog` and `POST /api/v1/calculations/resilience-simulation` (§11.1); `POST /api/v1/calculations/agro-savings-projection` (§11.2); new 404 slug `swap-not-found`; `POST /api/v1/calculations/stress-test`, `GET /api/v1/calculations/district-comparison` (snake_case query parameters, as in the PDF) and `GET /api/v1/districts/{code}/basket-details` (§11.3); twelve account and tracker endpoints recorded as blocked by Q-02/Q-04 (§11.4); `nutrition/indyo-yuzuye`, `agro/harvest-calendar` and `market/shopping-checklist` served as `awaiting_validated_data` (§11.5); reconciliation of all 21 PDF endpoints (§11.6). |
+| 0.4 | 2026-10-27 | **Implemented by the backend at the project owner's direction; frontend sign-off pending.** Adds §11 from `MISSING_APIS.pdf`: `GET /api/v1/shocks/catalog` and `POST /api/v1/calculations/resilience-simulation` (§11.1); `POST /api/v1/calculations/agro-savings-projection` (§11.2); new 404 slug `swap-not-found`; `POST /api/v1/calculations/stress-test`, `GET /api/v1/calculations/district-comparison` (snake_case query parameters, as in the PDF) and `GET /api/v1/districts/{code}/basket-details` (§11.3); twelve account and tracker endpoints recorded as blocked by Q-02/Q-04 (§11.4); `nutrition/indyo-yuzuye`, `agro/harvest-calendar` and `market/shopping-checklist` served as `awaiting_validated_data` (§11.5); reconciliation of all 21 PDF endpoints (§11.6). Later on 2026-10-27, with the project owner's approval: BR-24 household-size scaling for `district-comparison` and `stress-test`; the PDF's `runwayMonths` (buffer ÷ raw gap); `agro/harvest-calendar` served from NISR SAS 2025 (new source `sas-2025`). Then, with the project owner's approval of the PDF's example values as illustrative data: §11.7 and `meta.provenance`; Gasabo and Musanze example baskets; Gasabo staple prices and market hub; purchasing-power equivalents (BR-25); the balanced plate; the Gasabo size-4 checklist; `harvest_disruption` in the shock catalogue; the score and buffer-impact deviations documented with their evidence. Then `status` added to `basket-details`, and the open decisions for #13 and #21 listed (§11.7). Then BR-24 scaling of the Gasabo checklist to sizes 1–20 with `valueBasis`, and the district price evidence recorded (§11.5, §11.7). |
 
 ## 10. Official published statistics (contract v0.3)
 
@@ -481,7 +481,7 @@ The endpoints follow §1 conventions (`/api/v1` prefix, problem+json errors, `X-
 
 ## 11. Contract v0.4: endpoints from `MISSING_APIS.pdf` (frontend sign-off pending)
 
-**Status.** Implemented by the backend at the project owner's direction on 2026-10-27, following the project owner's specification `MISSING_APIS.pdf` (26 October 2026). The frontend has not signed it off. Conventions are those of §1. The response envelope adds `meta` (`isIllustrative: true`, `methodologyVersion`) to the PDF's shapes. All values are illustrative calculations, not observations. The request bodies are processed and discarded (Q-02). There is no login (Q-04).
+**Status.** Implemented by the backend at the project owner's direction on 2026-10-27, following the project owner's specification `MISSING_APIS.pdf` (26 October 2026). The frontend has not signed it off. Conventions are those of §1. The response envelope adds `meta` (`isIllustrative: true`, `methodologyVersion`) to the PDF's shapes. All values are illustrative calculations, not observations, except the harvest calendar (official NISR data, §11.5). Where a response serves `MISSING_APIS.pdf` example values (§11.7), its `meta` also carries `provenance: "MISSING_APIS.pdf example, owner-approved"` (`null` when it serves none). The request bodies are processed and discarded (Q-02). There is no login (Q-04).
 
 Where the PDF's example and the implementation differ, the PDF's field names are kept and the smallest correction is listed under each endpoint.
 
@@ -489,24 +489,25 @@ Where the PDF's example and the implementation differ, the PDF's field names are
 
 **`GET /api/v1/shocks/catalog`.** No query parameters (any parameter gives 400 `unknown-parameter`).
 - **Response:** `{items, copingLevers, meta}`.
-  - **`items`** has the PDF's three shocks: `income_drop` (`defaultPct` 20, `defaultDuration` 3), `medical_emergency` (`defaultAmount` 45,000) and `school_fees` (`defaultAmount` 60,000). Each item carries `id`, `title`, `isLumpSum`, `defaultPct`, `defaultDuration` and `defaultAmount`, with `null` where a field doesn't apply.
+  - **`items`** has the PDF's three example shocks, `income_drop` (`defaultPct` 20, `defaultDuration` 3), `medical_emergency` (`defaultAmount` 45,000) and `school_fees` (`defaultAmount` 60,000), plus `harvest_disruption` ("Harvest disruption"), which the PDF's description names without values. Each item carries `id`, `title`, `isLumpSum`, `defaultPct`, `defaultDuration` and `defaultAmount`, with `null` where a field doesn't apply.
+  - **`harvest_disruption`** (owner-approved on 2026-10-27) is an income shock with all defaults `null`: the PDF gives none, so the caller supplies `incomeReductionPct` and `durationMonths`. Treating a lost harvest as lost income is a stated modelling assumption (`harvest_disruption_modelled_as_a_loss_of_income` in the simulation's `assumptions`), not a fact about harvests.
   - **`copingLevers`** is an addition to the PDF: `{id, title, kind: monthly_relief | one_off_support, amount}`. The levers are `trim_non_essentials` (12,000 per month), `seasonal_agro_swaps` (5,200 per month) and `ibimina_tontine` (25,000 once).
-  - **`meta`** includes `count`.
+  - **`meta`** includes `count` and `provenance`.
 - **Provenance:** the values come from the PDF's examples (page 9). `seasonal_agro_swaps` equals the §11.2 projection for the seeded swap at 3 meals a week; `trim_non_essentials` is 17,200 − 5,200. They live in `backend/app/core/resilience_catalog.py`.
 
 **`POST /api/v1/calculations/resilience-simulation`.**
 - **Request:** `{baseline{monthlyIncome, monthlyEssentials, savings}, shock{type, incomeReductionPct?, durationMonths, amount?}, activeCopingLevers[]}`.
-  - `incomeReductionPct` is required for `income_drop` and rejected for lump-sum shocks.
+  - `incomeReductionPct` is required for the income shocks (`income_drop`, `harvest_disruption`) and rejected for lump-sum shocks.
   - `amount` (lump-sum shocks only) defaults to the catalogue value.
   - `durationMonths` is required for every shock.
   - Each lever may appear once.
   - Lever amounts, totals and scores are never accepted from the client (extra field: `unknown_field`).
 - **Response:** the PDF's `rawMonthlyGap`, `copingReliefMonthly`, `lumpSumSupport`, `netMonthlyGap`, `totalEffectiveBuffer`, `runwayMonths`, `resilienceScore` and `scoreChange`. Additions: `shockCostMonthly`, `savingsUsed`, `savingsRemaining`, `savingsExhausted` (BR-04/05 over the duration), `assumptions` and `meta`.
-- **Formulas:** BR-02/03/04/06 and BR-17 to BR-19 (backend-requirements §2).
+- **Formulas:** BR-02/03/04/06 and BR-17 to BR-19 (backend-requirements §2); `runwayMonths` per BR-18.
 - **Corrections to the PDF example:**
-  1. `runwayMonths` is `null` when `netMonthlyGap` is 0 (BR-06, as for `household-shock`), so the example gives `null`, not 14.2 (which is 85,000 ÷ the raw gap).
-  2. The score is BR-19, based on the frontend's heuristic (its +8 "gap closed" bonus needs a gap that levers closed). It gives 95 and `scoreChange` 28 for the example. The PDF shows 88 and "+26", which no formula in the repository reproduces.
-  3. `scoreChange` is an integer, not the string "+26" (§1).
+  1. `runwayMonths` follows the PDF: `totalEffectiveBuffer ÷ rawMonthlyGap` (85,000 ÷ 6,000 = 14.2 for the example), `null` only when there is no raw gap (approved by the project owner on 2026-10-27). It therefore differs from `household-shock`, whose runway is savings ÷ gap.
+  2. **Score (selected behaviour: BR-19).** The PDF states no score formula. BR-19 is the frontend simulator's own heuristic (`ResilienceSimulatorPage.tsx`: `clamp(70 − round(gap ÷ 2,000), 45, 75)`, then `+7` per lever and `+8` when the gap is closed), with one fix: the +8 needs a gap that levers closed. For the PDF's request it gives baseline 67, `min(95, 67 + 21 + 8)` = **95** and `scoreChange` **28**, the same values the frontend computes today. The PDF's 88 and "+26" would need a baseline of 62; neither the PDF nor the frontend has a formula that produces it, so the PDF's figures are not served. `assumptions` says so (`resilience_score_is_br_19_the_pdf_example_figures_are_not_derivable`).
+  3. `scoreChange` is an integer, not the string "+26" (§1; the project owner chose the integer on 2026-10-27).
 - **Errors:** 400 `malformed-request` or `unknown-parameter`; 405; 422 `validation` (`required`, `out_of_range`, `not_integer`, `unknown_value` for an unknown shock type or an unknown or duplicate lever, `unknown_field`).
 - **Unchanged:** `POST /calculations/household-shock`, with its `income_fall` type.
 
@@ -517,38 +518,39 @@ Where the PDF's example and the implementation differ, the PDF's field names are
   - `swapId`: 1–64 characters.
   - `mealsPerWeek`: integer 1–21.
   - `householdSize`: integer 1–20.
-- **Response:** the PDF's `swapId`, `perMealSavings` (BR-14 on the seeded swap's prices), `monthlyProjectedSavings` (BR-20) and `purchasingPowerEquivalents`. Additions: `purchasingPowerStatus`, `assumptions` and `meta`.
+- **Response:** the PDF's `swapId`, `perMealSavings` (BR-14 on the seeded swap's prices), `monthlyProjectedSavings` (BR-20) and `purchasingPowerEquivalents` (BR-25). Additions: `purchasingPowerStatus`, `assumptions` and `meta` (with `provenance`).
 - **Decisions, documented in `assumptions`:**
   - **Rounding:** the month is the exact 52/12 weeks, rounded half up to whole RWF. That gives the PDF's 5,200; the frontend's 4.33 approximation gives 5,196.
   - **Household size:** validated but not used to scale. The swap is priced per household meal, and there is no sourced scaling rule.
   - **Months:** a swap resolves by `swapId` whatever its seeded month.
-  - **Purchasing power:** `purchasingPowerEquivalents` is `[]` with `purchasingPowerStatus: "awaiting_validated_data"`. The project has no sourced prices for water, bus rides or eggs, so the PDF's example items aren't served.
+  - **Purchasing power (BR-25, owner-approved on 2026-10-27):** `purchasingPowerEquivalents` lists the PDF's three items with `purchasingPowerStatus: "available"`. Each count is `⌊monthlyProjectedSavings ÷ unit cost⌋`, with the unit costs implied by the PDF's example (5,200 ÷ its counts): **2,600 RWF a week of water**, **650 a bus ride**, **200 an egg**. The example therefore gives exactly 2 weeks, 8 rides and 26 eggs. These are not market prices (`assumptions` says so). Each item sets only its PDF key (`coversWeeks`, `ridesCount` or `quantity`); the other two are `null`. A projection of 0 or less buys 0 of each.
 - **Prices:** the seeded swap's prices are invented in the design ("not market observations").
 - **Errors:** 400 `malformed-request` or `unknown-parameter`; 404 `swap-not-found` (a new slug; validation runs first, so an invalid request with an unknown swap gives 422); 405; 422 `validation`.
 
 ### 11.3 District Budget Advisor
 
-All three endpoints read the one illustrative benchmark basket. It is the same for every district at household size 4 ([PD] Q-32), so they say so in `assumptions` and never present it as observed district data. Other household sizes give 404 `benchmark-not-available`.
+All three endpoints are illustrative. **Gasabo and Musanze** use the PDF's example baskets (page 7, owner-approved on 2026-10-27; §11.7): Gasabo 65,000 / 40,000 / 20,000 / 10,000 / 15,000 = 150,000 (equal to the seeded benchmark) and Musanze 50,000 / 28,000 / 14,000 / 9,000 / 14,000 = 115,000. **Every other district** uses the one seeded benchmark basket, the same for every district at household size 4 ([PD] Q-32), because the PDF gives no other district. `assumptions` names which applies (`gasabo_and_musanze_baskets_are_missing_apis_pdf_examples`, `benchmark_is_one_illustrative_basket_for_every_district`), `meta.provenance` is set when an example basket is used, and nothing is presented as observed district data. `/budget-benchmarks` keeps the seeded benchmark for every district, so for Musanze it still shows 150,000 (a known difference, §11.7). `district-comparison` and `stress-test` accept any `householdSize` 1–20 and scale the size-4 basket line by line with the square-root equivalence scale (BR-24, approved by the project owner on 2026-10-27). `basket-details` has no size parameter and stays at size 4; `/budget-benchmarks` is unchanged (size 4 only).
 
 **`POST /api/v1/calculations/stress-test`.**
 - **Request:** `{district, householdSize (1–20), scenario}`. `scenario` is `food_inflation_15` (food +15%) or `rent_surge_10` (housing +10%), from the PDF's page 8 text.
 - **Response:** the PDF's `baselineTotal`, `stressedTotal`, `monthlyIncrease` (BR-21) and `bufferImpactMonths` (BR-22), plus `assumptions` and `meta`.
-- **Correction:** the PDF's −1.2 can't be derived from its request, which has no savings or income. BR-22 defines the field as a year of the increase in months of the baseline basket, so the example gives −0.8.
+- **`bufferImpactMonths` (selected behaviour: BR-22).** The PDF states no formula, and its request has no savings, income or buffer. BR-22, `−(12 × monthlyIncrease ÷ baselineTotal)` (a year of the increase in months of the baseline basket), gives **−0.8** for the example (12 × 9,750 ÷ 150,000 = 0.78). Evidence that the PDF's −1.2 is not derivable: with only the basket in the request, −1.2 would need 12 × 9,750 ÷ 97,500 or 18 × 9,750 ÷ 150,000, neither of which matches any quantity the PDF defines, and the frontend has no stress-test buffer formula. The PDF's other three figures (150,000, 159,750 and 9,750) are reproduced exactly. `assumptions` says so (`buffer_impact_is_br_22_the_pdf_example_figure_is_not_derivable`).
 - **Errors:** 400; 404 `district-not-found` or `benchmark-not-available` (after validation); 405; 422 (`unknown_value` for an unknown scenario).
 
 **`GET /api/v1/calculations/district-comparison?district_a=&district_b=&household_size=`.**
 - **Query:** the PDF's snake_case names are kept, an exception to §1's camelCase rule. Any other parameter, including `districtA`, gives 400 `unknown-parameter`.
 - **Response:** the PDF's `districtA`/`districtB` `{code, name, total, breakdown{food, housing, transport, utilities, other}}` (`other` is the `other_essentials` category), `variance{netDifference, percentageDifference, categoryDifferences}` and `costOfLivingMultiplier` (BR-23), plus `assumptions` and `meta`.
-- **Two changes from the example:**
-  - `categoryDifferences` lists all five categories; the PDF's example lists three.
-  - With the uniform basket every difference is 0 and the multiplier is 1.0. The PDF's Musanze figures have no source and aren't served; BR-23 reproduces their arithmetic in tests.
+- **The PDF example is reproduced exactly:** Gasabo vs Musanze at size 4 gives 150,000 vs 115,000, `netDifference` −35,000, `percentageDifference` −23.3 and `costOfLivingMultiplier` 0.767.
+- **One addition:** `categoryDifferences` lists all five categories (`utilities` −1,000 and `other` −1,000 in the example); the PDF's example lists three.
+- Two districts without a PDF basket show no difference (0 and 1.0).
 - **Errors:** 400; 404 `district-not-found` or `benchmark-not-available`; 405; 422.
 
 **`GET /api/v1/districts/{code}/basket-details`.** No query parameters.
 - **Response:**
+  - `status` (an addition): `"available"` when every field has a value (Gasabo only); `"awaiting_validated_data"` when any field in `unavailableFields` is `null`. Unavailable numbers are `null`, never 0.
   - `districtCode`, plus `householdSize` (always 4).
-  - `referenceRentIndex` and `referenceTransitPass`: the benchmark's housing and transport lines (40,000 and 20,000, the PDF's example values).
-  - `staplePriceIndex{irishPotatoesPerKg, sweetPotatoesPerKg, redBeansPerKg}` and `primaryMarketHub`: **`null`**, because the project has no sourced staple prices or market hubs. `unavailableFields` lists them.
+  - `referenceRentIndex` and `referenceTransitPass`: the district basket's housing and transport lines (Gasabo 40,000 and 20,000, the PDF's example values; Musanze 28,000 and 14,000 from its example basket; elsewhere the benchmark's 40,000 and 20,000).
+  - `staplePriceIndex{irishPotatoesPerKg, sweetPotatoesPerKg, redBeansPerKg}` and `primaryMarketHub`: the PDF's example for **Gasabo only** (750, 800, 850 RWF per kg; "Kimironko Market"). Every other district gets **`null`**, because the PDF gives no other values; `unavailableFields` lists the null fields (`[]` for Gasabo).
   - `assumptions` and `meta`.
 - **Errors:** 400; 404 `district-not-found`; 405.
 
@@ -566,13 +568,21 @@ These twelve PDF endpoints need accounts or server-side storage of a household's
 
 Serving any of them needs the project owner to reopen Q-02 and Q-04 formally, with a privacy policy, consent, authentication, a write path and ownership checks.
 
-### 11.5 Awaiting a cited source
+### 11.5 Content endpoints
 
-These endpoints exist so the frontend can depend on a stable route, but the project has no cited source for their content. Each answers 200 with `status: "awaiting_validated_data"` and the PDF's fields present but empty (`[]`) or `null`, plus `assumptions` and `meta`. Nothing is filled in.
+Each answers 200 with a `status`: `"available"` with content, or `"awaiting_validated_data"` with the PDF's fields present but empty (`[]`) or `null`. Both carry `assumptions` and `meta`. Nothing is filled in beyond the sources named below.
 
-- **`GET /api/v1/nutrition/indyo-yuzuye`** (no query parameters). Fields: `standard` ("Indyo Yuzuye"), `plateComponents` `[]` and `energyTip` `null`. It needs national dietary guidance with a citation.
-- **`GET /api/v1/agro/harvest-calendar`** (no query parameters). Fields: `activeSeason`, `seasonName` and `monthsRange` are `null`; `harvestHighlights` is `[]`. It needs an official season calendar. The PDF and the frontend mock already disagree on season months.
-- **`GET /api/v1/market/shopping-checklist?district=&household_size=`** (the PDF's snake_case names). The district is validated (404 `district-not-found`) and `household_size` must be 1–20 (422). Fields: `items` is `[]`; `totalEstimatedBasket`, `unoptimizedBasket` and `estimatedSavings` are `null`. It needs sourced district market prices.
+- **`GET /api/v1/nutrition/indyo-yuzuye`** (no query parameters) serves the **PDF's example** (page 10, owner-approved on 2026-10-27, §11.7): `standard` "Indyo Yuzuye"; `plateComponents` energy 50% (Sweet potatoes, Cassava), protective 25% (Dodo amaranth, Isombe) and protein 25% (Red beans, Groundnuts); and the `energyTip` "Boiling sweet potatoes alongside beans saves 35% charcoal fuel." It is illustrative (`meta.isIllustrative: true`, `provenance` set). It is **not** presented as MINAGRI or MINISANTE guidance, and the 35% figure is not verified; `assumptions` says both. No official national adult dietary guideline was found to cite.
+- **`GET /api/v1/agro/harvest-calendar`** (no query parameters) is **official data, not a placeholder** (since 2026-10-27; source `sas-2025`, NISR Seasonal Agricultural Survey 2025, listed by `/nisr/sources`):
+  - Fields: `activeSeason` (`A`/`B`/`C`, from the current month in Kigali), `seasonName` (`Season A`), `monthsRange` (`September – February`, `March – June`, `July – September`, NISR's definitions), and `harvestHighlights` (the active season's three largest seasonal crops by 2025 production, e.g. "Sweet potato: 656,320 tonnes produced in Season A 2025 (NISR SAS 2025)").
+  - Additions: `month`, `seasons` (all three definitions), `source`, `assumptions`; `meta` is the official-statistics envelope (`isIllustrative: false`).
+  - September belongs to both Season A (which starts) and Season C (which ends); it is reported as A, like the PDF. Kinyarwanda season names are omitted because sources disagree (the PDF's "Season A (Umuhindo)" becomes "Season A"). Without the source row, `status` is `awaiting_validated_data`.
+- **`GET /api/v1/market/shopping-checklist?district=&household_size=`** (the PDF's snake_case names). The district is validated (404 `district-not-found`) and `household_size` must be 1–20 (422).
+  - **Gasabo, household size 4** serves the **PDF's example** (page 11, owner-approved on 2026-10-27): three items (Fresh Sweet Potatoes 3 kg 2,400; Local Red Kidney Beans 2 kg 1,700; Fresh Amaranth Greens (Dodo) 3 bundles 650), `totalEstimatedBasket` 6,250, `unoptimizedBasket` 8,650 and `estimatedSavings` 2,400, with `provenance` set.
+  - **The PDF's totals are served as given.** Its three items sum to 4,750, not 6,250, and the PDF does not say what else the basket holds, so the totals are not derived from the items; `assumptions` says so (`totals_are_the_pdf_figures_not_the_sum_of_the_listed_items`). `estimatedSavings` = `unoptimizedBasket − totalEstimatedBasket` holds.
+  - **Gasabo, any other household size** (approved by the project owner on 2026-10-27) serves the size-4 example scaled by BR-24, factor √(`household_size` ÷ 4), with `valueBasis: "modelled_from_pdf_example"`. Each `estPrice` and the `totalEstimatedBasket` and `unoptimizedBasket` are the PDF figures × factor, rounded half up to whole RWF; `estimatedSavings` = scaled `unoptimizedBasket` − scaled `totalEstimatedBasket`; each quantity is the PDF amount × factor, rounded half up to 0.1 in the same unit ("3 kg" at size 5 is "3.4 kg"; ".0" is dropped). Prices are scaled from the PDF price, not recomputed from the rounded quantity. Supported sizes are the validated 1–20. The scaled total keeps the PDF's unexplained gap (at size 4, 6,250 against items summing to 4,750); no item is added. `assumptions` names the model and the rounding; these are model outputs, not market observations.
+  - **`valueBasis`** (an addition): `"pdf_example"` at size 4, `"modelled_from_pdf_example"` at other sizes, `null` when awaiting data.
+  - **Every other district** answers `awaiting_validated_data` with `items` `[]`, null totals and `valueBasis` `null`: the PDF gives no other checklist and no checked source publishes one (`docs/architecture/district-price-evidence.md`).
 
 When a cited source is added, `status` becomes `"available"` and the fields fill in without any shape change.
 
@@ -583,13 +593,40 @@ When a cited source is added, `status` becomes `"available"` and the fields fill
 | 1–2 | `POST /auth/register`, `POST /auth/login` | Blocked: Q-04 (§11.4) |
 | 3–4 | `GET`/`PUT /user/profile` | Blocked: Q-02/Q-04 (§11.4) |
 | 5–11 | `/tracker/*` (overview, transactions ×4, daily-trend, burn-rate) | Blocked: Q-02 (§11.4) |
-| 12 | `GET /calculations/district-comparison` | Implemented on the illustrative benchmark (§11.3); real differences need per-district data |
-| 13 | `GET /districts/{code}/basket-details` | Partly implemented: rent and transit from the benchmark; staple prices and market hub awaiting a source (§11.3) |
-| 14 | `POST /calculations/stress-test` | Implemented (§11.3); `bufferImpactMonths` defined by BR-22 |
-| 15 | `GET /shocks/catalog` | Implemented (§11.1) |
-| 16 | `POST /calculations/resilience-simulation` | Implemented (§11.1); runway and score corrections listed there |
+| 12 | `GET /calculations/district-comparison` | Complete (illustrative): the PDF example exactly (Gasabo vs Musanze, §11.7); any household size (BR-24); districts without a PDF basket use the shared benchmark |
+| 13 | `GET /districts/{code}/basket-details` | Partial: the PDF example exactly for Gasabo; other districts have rent and transit but `null` staple prices and market hub (the PDF gives none) |
+| 14 | `POST /calculations/stress-test` | Complete with one documented deviation: totals as in the PDF; `bufferImpactMonths` is BR-22 (−0.8), not the PDF's −1.2, which no stated formula produces (§11.3) |
+| 15 | `GET /shocks/catalog` | Complete (illustrative): the PDF's three example shocks, plus `harvest_disruption` with `null` defaults (the PDF gives none, §11.1) |
+| 16 | `POST /calculations/resilience-simulation` | Complete with one documented deviation: the PDF's gaps, buffer and runway (14.2) exactly; score is BR-19 (95 / +28, integer), not the PDF's 88 / "+26", which no stated formula produces (§11.1) |
 | 17 | `POST /user/resilience-plan` | Blocked: Q-02 (§11.4) |
-| 18 | `POST /calculations/agro-savings-projection` | Implemented (§11.2); purchasing-power equivalents awaiting sourced prices |
-| 19 | `GET /nutrition/indyo-yuzuye` | Route served; content awaiting a source (§11.5) |
-| 20 | `GET /agro/harvest-calendar` | Route served; content awaiting a source (§11.5) |
-| 21 | `GET /market/shopping-checklist` | Route served; content awaiting sourced prices (§11.5) |
+| 18 | `POST /calculations/agro-savings-projection` | Complete (illustrative): the PDF example exactly, including 2 weeks / 8 rides / 26 eggs (BR-25, §11.2) |
+| 19 | `GET /nutrition/indyo-yuzuye` | Complete (illustrative): the PDF example, not presented as official guidance (§11.5) |
+| 20 | `GET /agro/harvest-calendar` | Complete with official NISR SAS 2025 data (§11.5); Kinyarwanda season name omitted |
+| 21 | `GET /market/shopping-checklist` | Partial: the PDF example for Gasabo at size 4 (totals as given) and BR-24-modelled for Gasabo at sizes 1–20; other districts `awaiting_validated_data` (§11.5) |
+
+### 11.7 Owner-approved PDF example values (illustrative)
+
+On 2026-10-27 the project owner approved serving the example values in `MISSING_APIS.pdf` as illustrative data for frontend integration, labelled `meta.isIllustrative: true` and `meta.provenance: "MISSING_APIS.pdf example, owner-approved"`. They live in `backend/app/core/pdf_examples.py` (with `backend/app/core/resilience_catalog.py` for the shocks and levers), copied exactly from the PDF and pinned by tests. They are not observations, market prices or official guidance.
+
+| Values (PDF page) | Served by | Scope |
+|---|---|---|
+| Gasabo and Musanze baskets (p. 7) | `district-comparison`, `stress-test`, `basket-details` (rent and transit) | those two districts; others use the shared benchmark |
+| Gasabo staple prices and "Kimironko Market" (p. 7) | `basket-details` | Gasabo only; others `null` |
+| Shock defaults and lever amounts (p. 9) | `shocks/catalog`, `resilience-simulation` | as listed in §11.1 |
+| Purchasing-power items, as unit costs implied by the example (p. 10) | `agro-savings-projection` | every swap and frequency (BR-25) |
+| Balanced plate and energy tip (p. 10) | `nutrition/indyo-yuzuye` | always |
+| Checklist items and totals (p. 11) | `market/shopping-checklist` | Gasabo; size 4 as given, other sizes modelled by BR-24 (`valueBasis`) |
+
+**Not extended.** Nothing is invented for districts or items the PDF does not show: those fields stay `null` or `[]`, or the response says `awaiting_validated_data`. The one extension is the owner-approved BR-24 scaling of the Gasabo checklist to other household sizes, labelled `modelled_from_pdf_example`.
+
+**Inconsistencies in the PDF, and what is served:**
+- `stress-test` `bufferImpactMonths` −1.2 and `resilience-simulation` score 88 / "+26": no stated formula produces them; BR-22 and BR-19 are served, with the evidence in §11.3 and §11.1.
+- Checklist: the items sum to 4,750 but the total is 6,250; the totals are served as given.
+- `harvestHighlights` in the PDF ("Plentiful sweet potatoes & cassava"…) are not served, because the harvest calendar is official NISR data (§11.5) and is not mixed with example text.
+- `/budget-benchmarks` (contract §4) is unchanged and still returns the shared benchmark for Musanze (150,000), while the v0.4 advisor uses the PDF's 115,000.
+
+**Open decisions (owner or data needed).** These keep #13 and #21 partial; the responses say `awaiting_validated_data` until one is closed. The sources checked for them (WFP market prices on HDX, NISR CPI, MINAGRI e-Soko) and the candidate values found are recorded in `docs/architecture/district-price-evidence.md`; none is served.
+1. **#13 staple prices and market hub for the 29 districts other than Gasabo.** Needs, per district: price per kg of Irish potatoes, sweet potatoes and red beans, and a named market, either from a citable source (publisher, title, date, URL or file hash, geography) or as values the owner supplies and approves as illustrative. The WFP data has current Irish-potato and dry-bean prices for five districts only, no sweet-potato price since 2015 and no primary-market attribute (evidence §3 and §5).
+2. **#21 checklist for districts other than Gasabo.** Needs, per district: item names, quantities and prices, `totalEstimatedBasket`, `unoptimizedBasket` and `estimatedSavings`, from the same kinds of source, plus a definition of `unoptimizedBasket` (the PDF does not define it).
+3. ~~**#21 household sizes other than 4.**~~ Closed on 2026-10-27: the owner approved BR-24 scaling of the Gasabo example (§11.5).
+4. **#21 the 4,750 vs 6,250 discrepancy.** Needs the owner to say whether the example list is partial (and give the missing items) or which figure is wrong. Until then the total is served as 6,250 (scaled at other sizes) and no item is invented.

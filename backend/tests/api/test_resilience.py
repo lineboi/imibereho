@@ -1,6 +1,8 @@
 """`GET /api/v1/shocks/catalog` and `POST /api/v1/calculations/resilience-simulation`.
 
 Contract v0.4 §11.1, from MISSING_APIS.pdf page 9. Both are stateless and need no database.
+Shock defaults and lever amounts are the PDF's example values (owner-approved illustrative data,
+contract §11.7), so both responses carry `meta.provenance`.
 """
 
 import copy
@@ -10,7 +12,13 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from tests.helpers import META, NOT_INTEGER_BODY_VALUES, assert_number, assert_problem, raw_json
+from tests.helpers import (
+    EXAMPLE_META,
+    NOT_INTEGER_BODY_VALUES,
+    assert_number,
+    assert_problem,
+    raw_json,
+)
 
 CATALOG: Final = "/api/v1/shocks/catalog"
 URL: Final = "/api/v1/calculations/resilience-simulation"
@@ -56,8 +64,11 @@ def test_catalog_items_follow_the_pdf(client: TestClient) -> None:
          "defaultPct": None, "defaultDuration": None, "defaultAmount": 45_000},
         {"id": "school_fees", "title": "School term fees", "isLumpSum": True,
          "defaultPct": None, "defaultDuration": None, "defaultAmount": 60_000},
+        # Named in the PDF's description without values: an income shock with no defaults.
+        {"id": "harvest_disruption", "title": "Harvest disruption", "isLumpSum": False,
+         "defaultPct": None, "defaultDuration": None, "defaultAmount": None},
     ]  # fmt: skip
-    assert data["meta"] == {**META, "count": 3}
+    assert data["meta"] == {**EXAMPLE_META, "count": 4}
 
 
 def test_catalog_lists_the_coping_levers(client: TestClient) -> None:
@@ -89,14 +100,42 @@ def test_pdf_example(client: TestClient) -> None:
         "totalEffectiveBuffer",
     )} == {"rawMonthlyGap": 6_000, "copingReliefMonthly": 17_200, "lumpSumSupport": 25_000,
            "netMonthlyGap": 0, "totalEffectiveBuffer": 85_000}  # fmt: skip
-    assert data["runwayMonths"] is None  # no net gap (BR-06); the PDF shows 14.2
-    assert (data["resilienceScore"], data["scoreChange"]) == (95, 28)  # PDF: 88, "+26"
+    assert_number(data["runwayMonths"], 14.2, integer=False)  # the PDF: 85,000 ÷ 6,000
+    # BR-19 (the frontend's own heuristic) gives 95 and +28. The PDF's 88 and "+26" are not
+    # produced by any formula it states (contract §11.1); scoreChange stays an integer.
+    assert (data["resilienceScore"], data["scoreChange"]) == (95, 28)
     assert data["shockCostMonthly"] == 0
     assert (data["savingsUsed"], data["savingsRemaining"], data["savingsExhausted"]) == (
         0, 85_000, False,
     )  # fmt: skip
-    assert "illustrative_parameters_not_observations" in data["assumptions"]
-    assert data["meta"] == META
+    assert data["assumptions"] == [
+        "illustrative_parameters_not_observations", "expenses_held_constant",
+        "lump_sum_spread_evenly_over_duration", "lever_amounts_from_catalogue",
+        "no_new_borrowing", "no_additional_shocks",
+        "resilience_score_is_br_19_the_pdf_example_figures_are_not_derivable",
+    ]  # fmt: skip
+    assert data["meta"] == EXAMPLE_META
+
+
+def test_harvest_disruption_is_an_income_shock(client: TestClient) -> None:
+    harvest = raw_json(client.post(URL, json=payload(shock__type="harvest_disruption")))
+    income = raw_json(client.post(URL, json=PDF_REQUEST))
+    same = ("rawMonthlyGap", "netMonthlyGap", "totalEffectiveBuffer", "runwayMonths",
+            "resilienceScore", "scoreChange")  # fmt: skip
+    assert {k: harvest[k] for k in same} == {k: income[k] for k in same}
+    assert harvest["assumptions"][-1] == "harvest_disruption_modelled_as_a_loss_of_income"
+    assert "harvest_disruption_modelled_as_a_loss_of_income" not in income["assumptions"]
+
+
+def test_harvest_disruption_needs_its_parameters(client: TestClient) -> None:
+    """The PDF gives no defaults, so the caller must say how much income is lost."""
+    body = payload(shock__type="harvest_disruption")
+    del body["shock"]["incomeReductionPct"]
+    assert_problem(client.post(URL, json=body), 422, "validation",
+                   ("shock.incomeReductionPct", "required"))  # fmt: skip
+    body = payload(shock__type="harvest_disruption", shock__amount=5_000)
+    assert_problem(client.post(URL, json=body), 422, "validation",
+                   ("shock.amount", "unknown_field"))  # fmt: skip
 
 
 def test_numbers_are_json_numbers(client: TestClient) -> None:
@@ -104,7 +143,7 @@ def test_numbers_are_json_numbers(client: TestClient) -> None:
     for key in ("rawMonthlyGap", "netMonthlyGap", "resilienceScore", "scoreChange"):
         assert_number(data[key], data[key], integer=True)
     assert data["rawMonthlyGap"] == 60_000 and data["netMonthlyGap"] == 42_800
-    assert_number(data["runwayMonths"], 2.0, integer=False)  # 85,000 ÷ 42,800 = 1.98…
+    assert_number(data["runwayMonths"], 1.4, integer=False)  # buffer ÷ raw gap: 85,000 ÷ 60,000
     assert isinstance(data["scoreChange"], int)
 
 
@@ -242,3 +281,10 @@ def test_openapi_documents_both_routes(stub_app: FastAPI) -> None:
     result = schemas["ResilienceSimulationResponse"]["properties"]
     assert result["scoreChange"]["type"] == "integer"
     assert {o.get("type") for o in result["runwayMonths"]["anyOf"]} == {"number", "null"}
+
+
+def test_runway_is_null_only_without_a_raw_gap(client: TestClient) -> None:
+    body = lump_sum()  # 45,000 over 3 months: no raw gap at 180,000 income
+    assert raw_json(client.post(URL, json=body))["runwayMonths"] is None
+    closed = raw_json(client.post(URL, json=PDF_REQUEST))  # levers close a 6,000 gap
+    assert closed["netMonthlyGap"] == 0 and closed["runwayMonths"] == 14.2

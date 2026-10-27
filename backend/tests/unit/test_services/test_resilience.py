@@ -10,6 +10,7 @@ from app.calculations import (
     net_monthly_gap,
     resilience_score,
     spread_monthly,
+    square_root_scaled,
     swap_difference,
 )
 from app.core.resilience_catalog import (
@@ -88,6 +89,7 @@ def test_catalogue_matches_the_pdf_example() -> None:
         ("income_drop", "Monthly income falls", False, 20, 3, None),
         ("medical_emergency", "Unexpected medical cost", True, None, None, 45_000),
         ("school_fees", "School term fees", True, None, None, 60_000),
+        ("harvest_disruption", "Harvest disruption", False, None, None, None),
     ]  # fmt: skip
 
 
@@ -108,9 +110,9 @@ def test_pdf_example_reproduces_every_reproducible_field() -> None:
     assert result.lump_sum_support == 25_000
     assert result.net_monthly_gap == 0
     assert result.total_effective_buffer == 85_000
-    # Documented corrections: BR-06 gives no runway without a gap (PDF: 14.2), and BR-19 gives
-    # 95 / +28 (PDF: 88 / "+26", which no formula in the repository reproduces).
-    assert result.runway_months is None
+    # Runway is the PDF's: buffer ÷ raw gap = 85,000 ÷ 6,000 = 14.17 → 14.2 (owner-approved).
+    assert result.runway_months == Decimal("14.2")
+    # BR-19 gives 95 / +28; the PDF's 88 / "+26" is reproduced by no formula in the repository.
     assert (result.resilience_score, result.score_change) == (95, 28)
 
 
@@ -124,7 +126,7 @@ def test_lump_sum_shock_is_spread_and_drawn_from_the_buffer() -> None:
     assert result.shock_cost_monthly == 15_000  # 45,000 default over 3 months
     assert result.raw_monthly_gap == 25_000  # 150,000 + 15,000 − 140,000
     assert result.net_monthly_gap == 13_000
-    assert result.runway_months == Decimal("4.6")  # 60,000 ÷ 13,000 = 4.615…
+    assert result.runway_months == Decimal("2.4")  # buffer ÷ raw gap: 60,000 ÷ 25,000
     assert (result.savings_used, result.savings_remaining) == (39_000, 21_000)
     assert result.savings_exhausted is False
 
@@ -157,3 +159,26 @@ def test_monthly_projection_rounds_thirds_to_the_nearest_rwf() -> None:
     assert monthly_projection(1, 1) == 4  # 4 1/3 → 4
     assert monthly_projection(1, 2) == 9  # 8 2/3 → 9
     assert monthly_projection(-1, 2) == -9  # −8 2/3 → −9
+
+
+@pytest.mark.parametrize(
+    ("amount", "size", "expected"),
+    [
+        (65_000, 4, 65_000),  # the base size is unchanged
+        (65_000, 1, 32_500),  # √(1/4) = 0.5
+        (65_000, 16, 130_000),  # √4 = 2
+        (65_000, 5, 72_672),  # 65,000 × 1.118034 = 72,672.2
+        (40_000, 2, 28_284),  # 40,000 × 0.707107 = 28,284.3
+        (10_000, 20, 22_361),  # 10,000 × 2.236068 = 22,360.7
+        (0, 7, 0),
+    ],
+)
+def test_square_root_scaled_br24(amount: int, size: int, expected: int) -> None:
+    assert square_root_scaled(amount, size, 4) == expected
+
+
+def test_square_root_scaled_rejects_bad_sizes() -> None:
+    with pytest.raises(ValueError):
+        square_root_scaled(100, 0, 4)
+    with pytest.raises(ValueError):
+        square_root_scaled(-1, 4, 4)

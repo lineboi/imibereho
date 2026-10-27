@@ -1,6 +1,8 @@
 """`POST /api/v1/calculations/agro-savings-projection` (contract v0.4 §11.2, PDF page 10).
 
 Reads the seeded `rice-to-sweet-potato` swap (2,000 → 1,600 RWF, invented in the design).
+Purchasing-power equivalents use the unit costs implied by the PDF's example (2,600 RWF a week of
+water, 650 a bus ride, 200 an egg; owner-approved illustrative data, contract §11.7).
 """
 
 from typing import Any, Final
@@ -9,9 +11,25 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from tests.helpers import META, NOT_INTEGER_BODY_VALUES, assert_number, assert_problem, raw_json
+from tests.helpers import (
+    EXAMPLE_META,
+    NOT_INTEGER_BODY_VALUES,
+    assert_number,
+    assert_problem,
+    raw_json,
+)
 
 URL: Final = "/api/v1/calculations/agro-savings-projection"
+
+
+def equivalents(weeks: int, rides: int, eggs: int) -> list[dict[str, object]]:
+    """Each item sets only its own PDF count key; the other two are null."""
+    empty = dict.fromkeys(("coversWeeks", "ridesCount", "quantity"))
+    return [
+        {"item": "WASAC Clean Water", **empty, "coversWeeks": weeks},
+        {"item": "Kigali City Bus Rides", **empty, "ridesCount": rides},
+        {"item": "Fresh Farm Eggs", **empty, "quantity": eggs},
+    ]
 
 
 def payload(**changes: Any) -> dict[str, Any]:
@@ -26,27 +44,33 @@ def test_pdf_example(db_client: TestClient) -> None:
         "swapId": "rice-to-sweet-potato",
         "perMealSavings": 400,
         "monthlyProjectedSavings": 5_200,  # 400 × 3 × 52 ÷ 12, exactly the PDF's value
-        "purchasingPowerEquivalents": [],  # no sourced prices for water, bus rides or eggs
-        "purchasingPowerStatus": "awaiting_validated_data",
+        "purchasingPowerEquivalents": equivalents(2, 8, 26),  # exactly the PDF's example
+        "purchasingPowerStatus": "available",
         "assumptions": [
             "illustrative_prices_not_market_observations",
             "weeks_per_month_52_over_12",
             "priced_per_household_meal_household_size_does_not_scale",
             "swap_applies_whatever_the_month",
-            "purchasing_power_equivalents_need_sourced_prices",
+            "purchasing_power_unit_costs_implied_by_the_pdf_example_not_market_prices",
+            "purchasing_power_counts_are_whole_units_rounded_down",
         ],
-        "meta": META,
+        "meta": EXAMPLE_META,
     }
     for key in ("perMealSavings", "monthlyProjectedSavings"):
         assert_number(data[key], data[key], integer=True)
 
 
-@pytest.mark.parametrize(("meals", "expected"), [(1, 1_733), (7, 12_133), (21, 36_400)])
+@pytest.mark.parametrize(
+    ("meals", "expected", "counts"),
+    [(1, 1_733, (0, 2, 8)), (7, 12_133, (4, 18, 60)), (21, 36_400, (14, 56, 182))],
+)
 def test_meals_per_week_scale_the_projection(
-    db_client: TestClient, meals: int, expected: int
+    db_client: TestClient, meals: int, expected: int, counts: tuple[int, int, int]
 ) -> None:
     data = raw_json(db_client.post(URL, json=payload(mealsPerWeek=meals)))
     assert data["monthlyProjectedSavings"] == expected
+    # Whole units, rounded down: 1,733 ÷ 2,600 buys no full week of water.
+    assert data["purchasingPowerEquivalents"] == equivalents(*counts)
 
 
 def test_household_size_does_not_change_the_result(db_client: TestClient) -> None:
@@ -121,3 +145,5 @@ def test_openapi(stub_app: FastAPI) -> None:
     props = spec["components"]["schemas"]["AgroSavingsProjectionResponse"]["properties"]
     assert props["monthlyProjectedSavings"]["type"] == "integer"
     assert set(props["purchasingPowerStatus"]["enum"]) == {"available", "awaiting_validated_data"}
+    item = spec["components"]["schemas"]["PurchasingPowerEquivalent"]["properties"]
+    assert set(item) == {"item", "coversWeeks", "ridesCount", "quantity"}
