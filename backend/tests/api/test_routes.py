@@ -47,6 +47,10 @@ EXTENSION_ENDPOINTS: Final = frozenset(
         ("POST", "/api/v1/calculations/stress-test"),
         ("GET", "/api/v1/calculations/district-comparison"),
         ("GET", "/api/v1/districts/{code}/basket-details"),
+        # v0.4 content endpoints that answer `awaiting_validated_data` until a source exists.
+        ("GET", "/api/v1/nutrition/indyo-yuzuye"),
+        ("GET", "/api/v1/agro/harvest-calendar"),
+        ("GET", "/api/v1/market/shopping-checklist"),
     }
 )
 # What this build ships. Optional endpoints not built: /methodology, /demo-household.
