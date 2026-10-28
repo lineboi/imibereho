@@ -41,6 +41,11 @@ def tables(database: Database) -> set[str]:
         return set(inspect(connection).get_table_names())
 
 
+def columns(database: Database, table: str) -> set[str]:
+    with database.engine.connect() as connection:
+        return {column["name"] for column in inspect(connection).get_columns(table)}
+
+
 def revision(database: Database) -> str | None:
     with database.engine.connect() as connection:
         if "alembic_version" not in inspect(connection).get_table_names():
@@ -108,6 +113,10 @@ def test_stepwise_downgrade_and_upgrade(
 ) -> None:
     migrate.run(migrations_settings, "migrations", "upgrade", "head")
     migrate.run(migrations_settings, "migrations", "downgrade", "-1")
+    assert revision(migrations_database) == "0009"
+    assert "planned_essentials" not in columns(migrations_database, "household_accounts")
+    assert "identifier" in columns(migrations_database, "household_accounts")
+    migrate.run(migrations_settings, "migrations", "downgrade", "-1")
     assert revision(migrations_database) == "0008"
     assert "household_accounts" not in tables(migrations_database)
     assert "survey_estimates" in tables(migrations_database)
@@ -126,7 +135,7 @@ def test_stepwise_downgrade_and_upgrade(
     assert revision(migrations_database) == "0004"
     assert "synthetic_households" not in tables(migrations_database)
     migrate.run(migrations_settings, "migrations", "upgrade", "head")
-    assert revision(migrations_database) == migrate.head_revision() == "0009"
+    assert revision(migrations_database) == migrate.head_revision() == "0010"
 
 
 def test_named_constraints_follow_the_convention(

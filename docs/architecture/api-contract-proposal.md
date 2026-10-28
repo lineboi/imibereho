@@ -4,6 +4,7 @@
 > **Status: v0.2, backend proposal, awaiting frontend sign-off.** Nothing here is implemented yet. Once frontend and backend agree, the status becomes "agreed". After that, changes need a new contract version and a note in §9.
 > **Status of v0.3 (§10, official published statistics): agreed.** v0.3 was agreed by the frontend teammate on 27 October 2026. The approval covers contract v0.3 only; it does not cover v0.2 rev 2, whose status above is unchanged.
 > **Status of v0.4 (§11, from `MISSING_APIS.pdf`): implemented by the backend at the project owner's direction (2026-10-27); frontend sign-off pending.**
+> **Status of v0.6 (§11.9, household profile: `GET` and `PATCH /user/profile`): implemented by the backend at the project owner's direction (2026-10-28); frontend sign-off pending.** The PDF's `PUT` is replaced by `PATCH` at the owner's direction; the PDF lists `PUT` but gives that update no body, so the PATCH body is an implementation decision and contract extension, approved by the project owner on 2026-10-28; it is not specified by the PDF (derived from the PDF's GET example; §11.9).
 > **Status of v0.5 (§11.8, household accounts: register and login): implemented by the backend at the project owner's direction (2026-10-28); frontend sign-off pending.** It changes **Q-02 for one table**: citizen accounts (Option C) in `household_accounts`. **Q-04** (decision-maker login) is **unchanged**. Q-13 (retention, deletion, consent) and Q-34 (the design copy "does not collect or save your details") are open; see §11.8.
 > **Basis:** the Figma screens ([design-inventory.md](../figma/design-inventory.md)), [backend-requirements.md](./backend-requirements.md), and the resolutions of Q-01, Q-02, Q-04 and Q-15 in [open-questions.md](../requirements/open-questions.md).
 >
@@ -28,8 +29,8 @@ Three version numbers exist. They are independent.
 |---|---|
 | Base URL | `/api/v1`. The health checks `/health` and `/ready` are at the root, outside `/api/v1`. |
 | Format | JSON, UTF-8. Field names are `camelCase`. |
-| Auth | `POST /auth/register` and `POST /auth/login` issue bearer tokens (v0.5, §11.8): citizen accounts, a Q-02 change made at the project owner's direction on 2026-10-28; Q-04 (decision-maker login) is unchanged. A current-account dependency verifies tokens for future protected routes, but no served endpoint requires a token; every endpoint stays public. |
-| Citizen data | Never stored (Q-02 resolved, Option A), with one exception since v0.5: `POST /auth/register` stores a household account (§11.8). Request bodies are processed and then discarded, never logged. Money values travel only in POST bodies, never in query strings, because hosting-platform access logs record full URLs. |
+| Auth | `POST /auth/register` and `POST /auth/login` issue bearer tokens (v0.5, §11.8): citizen accounts, a Q-02 change made at the project owner's direction on 2026-10-28; Q-04 (decision-maker login) is unchanged. A current-account dependency verifies tokens; since v0.6 `GET` and `PATCH /user/profile` (§11.9) require one. Every other endpoint stays public. |
+| Citizen data | Never stored (Q-02 resolved, Option A), with one exception since v0.5: `POST /auth/register` stores a household account (§11.8), and since v0.6 `PATCH /user/profile` changes it, including the planned essentials and savings buffer (§11.9). Request bodies are processed and then discarded, never logged. Money values travel only in POST bodies, never in query strings, because hosting-platform access logs record full URLs. |
 | Money | Integer RWF, e.g. `180000`. The frontend formats `180,000 RWF` and `18m RWF`. |
 | Numbers in responses | Every numeric field is a **JSON number, never a string**. Integers (money, counts, scores, months) are written without a decimal point. Fractional fields are written with no more decimal places than listed: ratios and shares 4 (`0.8333`), `runwayMonths` 1 (`7.5`, `10.0`), weights 2 (`0.4`), swap quantities 2 (`1`, `2`). |
 | Percent inputs | Integer 0–100. `20` means 20%. |
@@ -89,7 +90,7 @@ Content type: `application/problem+json`.
 | 404 | `not-found` | Unknown route | — |
 | 405 | `method-not-allowed` | Wrong HTTP method | — |
 | 401 | `invalid-credentials` | `POST /auth/login` only: unknown identifier or wrong password (one answer for both); carries `WWW-Authenticate: Bearer` (§11.8) | — |
-| 401 | `not-authenticated` | A protected route only (none is served yet): a missing, malformed, wrongly signed or expired bearer token, or one whose account no longer exists (one answer for all); carries `WWW-Authenticate: Bearer` (§11.8) | — |
+| 401 | `not-authenticated` | A protected route only (`GET` and `PATCH /user/profile`, §11.9): a missing, malformed, wrongly signed or expired bearer token, or one whose account no longer exists (one answer for all); carries `WWW-Authenticate: Bearer` (§11.8) | — |
 | 409 | `identifier-taken` | `POST /auth/register` only: an account already uses this identifier (§11.8) | — |
 | 422 | `validation` | Field-level failures | `required`, `out_of_range`, `not_integer`, `unknown_value` (a bad enum or filter value), `too_long`, `unknown_field` (an extra body field); for the account endpoints only (§11.8), also `too_short` and `invalid_format` |
 | 429 | `rate-limited` | Too many calculation requests; includes a `Retry-After` header. **Optional step**; may not ship | — |
@@ -459,6 +460,7 @@ Rate limiting (429) is also optional. Every other code in §1.3 applies to all e
 | 0.4 | 2026-10-27 | **Implemented by the backend at the project owner's direction; frontend sign-off pending.** Adds §11 from `MISSING_APIS.pdf`: `GET /api/v1/shocks/catalog` and `POST /api/v1/calculations/resilience-simulation` (§11.1); `POST /api/v1/calculations/agro-savings-projection` (§11.2); new 404 slug `swap-not-found`; `POST /api/v1/calculations/stress-test`, `GET /api/v1/calculations/district-comparison` (snake_case query parameters, as in the PDF) and `GET /api/v1/districts/{code}/basket-details` (§11.3); twelve account and tracker endpoints recorded as blocked by Q-02/Q-04 (§11.4); `nutrition/indyo-yuzuye`, `agro/harvest-calendar` and `market/shopping-checklist` served as `awaiting_validated_data` (§11.5); reconciliation of all 21 PDF endpoints (§11.6). Later on 2026-10-27, with the project owner's approval: BR-24 household-size scaling for `district-comparison` and `stress-test`; the PDF's `runwayMonths` (buffer ÷ raw gap); `agro/harvest-calendar` served from NISR SAS 2025 (new source `sas-2025`). Then, with the project owner's approval of the PDF's example values as illustrative data: §11.7 and `meta.provenance`; Gasabo and Musanze example baskets; Gasabo staple prices and market hub; purchasing-power equivalents (BR-25); the balanced plate; the Gasabo size-4 checklist; `harvest_disruption` in the shock catalogue; the score and buffer-impact deviations documented with their evidence. Then `status` added to `basket-details`, and the open decisions for #13 and #21 listed (§11.7). Then BR-24 scaling of the Gasabo checklist to sizes 1–20 with `valueBasis`, and the district price evidence recorded (§11.5, §11.7). |
 | 0.5 | 2026-10-28 | **Implemented by the backend at the project owner's direction; frontend sign-off pending.** Adds §11.8: `POST /api/v1/auth/register` (201) and `POST /api/v1/auth/login` (200), with the PDF's fields exactly; the `household_accounts` table (migration 0009), Argon2id password hashes and HS256 bearer tokens valid for 86,400 s; new problem types `invalid-credentials` (401), `identifier-taken` (409) and `auth-not-configured` (503); new 422 codes `too_short` and `invalid_format` for these two endpoints. A Q-02 change for that table only (citizen accounts, Option C); Q-04 unchanged (§1, §11.4). |
 | 0.5 rev 1 | 2026-10-28 | Security review fixes, frontend sign-off still pending. Identifiers are ASCII only: lookalikes (non-ASCII digits, invisible or fullwidth characters) are rejected, not normalised. A current-account dependency for future protected routes (new 401 `not-authenticated`; HS256 only; `sub`, `iat`, `exp` required; the account must exist); CORS allows `Authorization`. The Q-02/Q-04 wording is corrected and the open privacy decisions are listed (Q-13, Q-34). No endpoint added or changed in shape. |
+| 0.6 | 2026-10-28 | **Implemented by the backend at the project owner's direction; frontend sign-off pending.** Adds §11.9: `GET /api/v1/user/profile` (the PDF's response fields exactly) and `PATCH /api/v1/user/profile` in place of the PDF's `PUT` (owner direction; `PUT` gives 405). The PATCH body is a contract extension, not from the PDF (which lists `PUT` with no body): derived from the GET shape and approved by the project owner on 2026-10-28. Migration 0010 adds `planned_essentials`, `savings_buffer` (null until set) and `updated_at`. CORS allows `PATCH`; a 405's `Allow` header now lists every method of the path. |
 
 ## 10. Official published statistics (contract v0.3)
 
@@ -563,16 +565,16 @@ All three endpoints are illustrative. **Gasabo and Musanze** use the PDF's examp
 
 ### 11.4 Blocked by Q-02 and Q-04 (not served)
 
-These ten PDF endpoints need server-side storage of a household's own data beyond its account, and ownership checks on top of the current-account dependency (§11.8). Q-02 (citizen data is never stored, except the account table of §11.8) still applies to them, so the routes aren't registered and an unknown path gives 404 `not-found`. Under Q-02 the tracker, profile and plan data stay on the device. A test (`test_privacy_blocked_pdf_endpoints_are_not_served`) keeps the routes out.
+These eight PDF endpoints need server-side storage of a household's own data beyond its account, and ownership checks on top of the current-account dependency (§11.8). Q-02 (citizen data is never stored, except the account table of §11.8) still applies to them, so the routes aren't registered and an unknown path gives 404 `not-found`. Under Q-02 the tracker, profile and plan data stay on the device. A test (`test_privacy_blocked_pdf_endpoints_are_not_served`) keeps the routes out.
 
 | Endpoint | Needs |
 |---|---|
-| `GET /api/v1/user/profile`, `PUT /api/v1/user/profile` | a stored household profile tied to an account (Q-02, Q-04) |
+| `PUT /api/v1/user/profile` | replaced by `PATCH` (v0.6, §11.9); `PUT` answers 405 |
 | `GET /api/v1/tracker/overview`, `GET /api/v1/tracker/daily-trend`, `GET /api/v1/tracker/burn-rate` | aggregates of stored transactions (Q-02) |
 | `GET /api/v1/tracker/transactions`, `POST /api/v1/tracker/transactions`, `PUT /api/v1/tracker/transactions/{id}`, `DELETE /api/v1/tracker/transactions/{id}` | stored transactions (Q-02) |
 | `POST /api/v1/user/resilience-plan` | a stored plan (Q-02) |
 
-Register and login moved out of this list in v0.5 (§11.8), which supplies the accounts and tokens. Serving the others needs the project owner to reopen Q-02 for their data, plus a privacy policy, consent (Q-13), the current-account dependency of §11.8 on each request, and ownership checks.
+Register and login moved out of this list in v0.5 (§11.8), which supplies the accounts and tokens; the profile in v0.6 (§11.9). Serving the others needs the project owner to reopen Q-02 for their data, plus a privacy policy, consent (Q-13), the current-account dependency of §11.8 on each request, and ownership checks.
 
 ### 11.5 Content endpoints
 
@@ -597,7 +599,7 @@ When a cited source is added, `status` becomes `"available"` and the fields fill
 | # | Endpoint | Outcome |
 |---|---|---|
 | 1–2 | `POST /auth/register`, `POST /auth/login` | Complete (v0.5, §11.8): the PDF's request and response fields exactly; validation rules, errors and token claims set by the backend because the PDF gives none |
-| 3–4 | `GET`/`PUT /user/profile` | Blocked: Q-02/Q-04 (§11.4) |
+| 3–4 | `GET`/`PUT /user/profile` | Complete (v0.6, §11.9): `GET` exactly the PDF's response fields; `PUT` replaced by `PATCH` at the owner's direction, with a body that is a contract extension approved by the owner on 2026-10-28 (the PDF lists `PUT` with no body; derived from the GET shape) |
 | 5–11 | `/tracker/*` (overview, transactions ×4, daily-trend, burn-rate) | Blocked: Q-02 (§11.4) |
 | 12 | `GET /calculations/district-comparison` | Complete (illustrative): the PDF example exactly (Gasabo vs Musanze, §11.7); any household size (BR-24); districts without a PDF basket use the shared benchmark |
 | 13 | `GET /districts/{code}/basket-details` | Partial: the PDF example exactly for Gasabo; other districts have rent and transit but `null` staple prices and market hub (the PDF gives none) |
@@ -668,3 +670,24 @@ On 2026-10-27 the project owner approved serving the example values in `MISSING_
 - **Q-13 (Product): retention, deletion and consent** for the stored accounts. Open again since this table exists.
 - **Q-34 (frontend owner and Product): the design copy** "This prototype does not collect or save your details" and "No registration or phone number required" (`2:6401`, `2:6407`, `2:6409`) now conflicts with registration. The copy is design and frontend content, so the backend has not changed it; the frontend owner and Product decide whether to change the copy, show registration only with a privacy notice, or keep registration out of the citizen UI. Using the app without an account still works, because no served endpoint requires a token.
 - **Frontend sign-off** on v0.5.
+
+### 11.9 Household profile: `GET` and `PATCH /user/profile` (contract v0.6)
+
+**Status.** Implemented on 2026-10-28 at the project owner's direction; frontend sign-off pending. Both methods need `Authorization: Bearer <token>` from register or login, checked by the current-account dependency of §11.8 (401 `not-authenticated` otherwise, 503 `auth-not-configured` without `JWT_SECRET_KEY`). The data stays in `household_accounts`: a further use of the Q-02 change of §11.8, not a privacy-policy approval (Q-13 and Q-34 remain open).
+
+**Deviations from the PDF, both at the owner's direction or forced by a gap:**
+- **`PATCH` instead of `PUT`.** The owner chose `PATCH` (a partial update). `PUT /user/profile` is not routed: it answers 405 with `Allow: GET, PATCH`.
+- **The update's body is derived, not copied.** The PDF lists `PUT /user/profile` in its inventory only; page 4 gives no request or response body. The PATCH body is therefore the editable part of the PDF's GET example, and its response is that GET body. **This is an implementation decision and contract extension, approved by the project owner on 2026-10-28; it is not specified by the PDF.** Everything below about PATCH (fields, validation, nullability, partial updates) is the backend's definition, not the PDF's.
+
+**`GET /api/v1/user/profile`** → `200`, exactly the PDF's fields: `{"id", "district", "householdSize", "monthlyIncome", "plannedEssentials", "savingsBuffer", "preferredLanguage"}`. No query parameters (any → 400 `unknown-parameter`). `plannedEssentials` and `savingsBuffer` are integers in RWF, or **`null`** until the household sets them: register does not collect them, and the backend does not invent a 0. With both set, the response is the PDF's example (`plannedEssentials` 150,000, `savingsBuffer` 60,000 for the PDF's household).
+
+**`PATCH /api/v1/user/profile`** → `200` with the full profile as stored (the GET body). *Contract extension (not in the PDF), approved 2026-10-28.*
+- Body: any of `district`, `householdSize`, `monthlyIncome`, `plannedEssentials`, `savingsBuffer`, `preferredLanguage` (camelCase; strict types). A field left out is unchanged. Bounds are register's: `householdSize` 1–20; money 0–100,000,000 whole RWF; `preferredLanguage` `"EN"` or `"RW"`; `district` an existing code (case-sensitive, §5).
+- `null`: clears `plannedEssentials` or `savingsBuffer`; for the four fields that always have a value it is 422 `required`.
+- `{}` changes nothing (no write) and returns the profile.
+- Anything else is 422 `unknown_field`, including `id`, `identifier`, `password` and `currency`: this endpoint never changes the login identifier, the password or the currency, which are not part of the PDF's profile.
+- Order: token (401), then validation (400, 422), then the district lookup (404). A request that fails any of these writes nothing.
+- Concurrency: one `UPDATE … RETURNING` per request sets only the fields the body contains, so concurrent PATCHes of different fields all survive, and the response is the committed row. Two PATCHes of the same field: the last one wins (no `ETag`/`If-Match` yet).
+- `updated_at` records the last change (not returned; the PDF's shape has no such field).
+
+**Storage (migration 0010).** Adds `planned_essentials`, `savings_buffer` (nullable INTEGER, each `NULL` or 0–100,000,000) and `updated_at` (nullable). Existing accounts keep `NULL`, so the migration needs no backfill. Downgrading drops the three columns and their values.

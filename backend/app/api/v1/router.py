@@ -11,6 +11,7 @@ from app.api.v1.endpoints import (
     district_advisor,
     nisr,
     policy_scenarios,
+    profile,
     resilience,
     seasonal_swaps,
     shocks,
@@ -31,5 +32,6 @@ for module in (
     dashboard,
     nisr,
     auth,
+    profile,
 ):
     router.include_router(module.router)
