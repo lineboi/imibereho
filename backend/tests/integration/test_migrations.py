@@ -17,7 +17,8 @@ from app.db.session import Database
 
 
 @pytest.fixture(scope="module")
-def migrations_settings() -> Settings:
+def migrations_settings(exclusive_db_run: None) -> Settings:
+    """Taken under the suite's lock (tests/conftest.py), so no other run sees the downgrades."""
     settings = load_settings()
     try:
         settings.database_url_for("migrations")
