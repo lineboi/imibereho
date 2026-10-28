@@ -3,9 +3,11 @@
 The project owner approved these on 2026-10-27 for frontend integration, with the provenance
 label `PROVENANCE` and `meta.isIllustrative: true`. They are the PDF's own example responses
 (26 October 2026), copied exactly. They are not observations, market prices or official
-guidance, and nothing here is extended to districts or items the PDF does not show. The one
-extension, approved by the owner, is BR-24 scaling of the Gasabo checklist to other household
-sizes; the agro service does it and labels the result as modelled, not as a PDF value.
+guidance. Nothing here is extended to items the PDF does not show. The extensions, approved by
+the owner, are modelled by the services and labelled as modelled, never as PDF values: BR-24
+scaling of the Gasabo checklist to other household sizes (2026-10-27), and BR-28 scaling of the
+Gasabo staple prices and checklist to the other districts by their food basket line
+(2026-10-28).
 
 Versioned code constants, like the resilience catalogue: small, fixed per methodology version,
 never joined with other data, so no seeded table or migration.
@@ -43,6 +45,8 @@ class StaplePrices:
 
 STAPLE_PRICES: Final = {"gasabo": StaplePrices(750, 800, 850)}
 MARKET_HUBS: Final = {"gasabo": "Kimironko Market"}
+# The district whose staple prices and checklist the PDF gives; BR-28 models the others from it.
+REFERENCE_DISTRICT: Final = "gasabo"
 
 
 # --- Page 10: `agro-savings-projection` purchasing-power equivalents ---
@@ -97,22 +101,22 @@ class ChecklistItemExample:
 @dataclass(frozen=True, slots=True)
 class ChecklistExample:
     items: tuple[ChecklistItemExample, ...]
-    total_estimated_basket: int
     unoptimized_basket: int
-    estimated_savings: int
+    printed_total: int  # the PDF's totalEstimatedBasket as printed; not served (see below)
+    printed_savings: int  # the PDF's estimatedSavings as printed; not served
 
 
-# The PDF's totals are served as given. Its three items sum to 4,750, not 6,250, and the PDF
-# does not say what else the basket holds, so the totals are not derived from the items.
-CHECKLISTS: Final = {
-    ("gasabo", EXAMPLE_HOUSEHOLD_SIZE): ChecklistExample(
-        items=(
-            ChecklistItemExample("Fresh Sweet Potatoes", 3, "kg", 2_400),
-            ChecklistItemExample("Local Red Kidney Beans", 2, "kg", 1_700),
-            ChecklistItemExample("Fresh Amaranth Greens (Dodo)", 3, "bundles", 650),
-        ),
-        total_estimated_basket=6_250,
-        unoptimized_basket=8_650,
-        estimated_savings=2_400,
+# The PDF's three items sum to 4,750, but it prints a total of 6,250 (and savings of 2,400 =
+# 8,650 − 6,250). On 2026-10-28 the owner chose the sum of the items, so the API serves
+# total = Σ items and savings = unoptimized − total (8,650 − 4,750 = 3,900), as the frontend's
+# SmartMarketChecklist computes it. The printed figures are kept only so a test pins the PDF.
+CHECKLIST: Final = ChecklistExample(
+    items=(
+        ChecklistItemExample("Fresh Sweet Potatoes", 3, "kg", 2_400),
+        ChecklistItemExample("Local Red Kidney Beans", 2, "kg", 1_700),
+        ChecklistItemExample("Fresh Amaranth Greens (Dodo)", 3, "bundles", 650),
     ),
-}
+    unoptimized_basket=8_650,
+    printed_total=6_250,
+    printed_savings=2_400,
+)

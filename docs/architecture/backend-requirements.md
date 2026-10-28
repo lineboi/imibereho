@@ -24,7 +24,7 @@ The design does not show a CRUD-heavy app. Most of what it shows falls into thre
 | B. Anonymous server persistence | The backend issues an anonymous household ID or device token and stores the profile, plan and expenses. | Contradicts the privacy copy unless that copy changes. Needs a retention policy (Q-13). |
 | C. Account-based | Citizen accounts. | Contradicts "No account. No phone number." |
 
-**Q-02 is resolved as Option A.** The Option B additions marked **(Option B only)** are not built. **Since 2026-10-28, Option C exists for accounts only:** `POST /auth/register` and `POST /auth/login` store citizen accounts (contract §11.8). This contradicts the design copy quoted above; the conflict is open as Q-34, and retention, deletion and consent as Q-13.
+**Q-02 is resolved as Option A.** The Option B additions marked **(Option B only)** are not built. **Since 2026-10-28, Option C exists for accounts only:** `POST /auth/register` and `POST /auth/login` store citizen accounts (contract §11.8), and the account's profile, tracker transactions and saved resilience plan are stored with it (§11.9–§11.11). This contradicts the design copy quoted above; the conflict is open as Q-34, and retention, deletion and consent as Q-13.
 
 ### Where calculations run (decision needed: Q-16)
 
@@ -63,6 +63,7 @@ All of these are taken from on-screen text and verified against the demo numbers
 | BR-25 | Purchasing-power equivalents (v0.4) | `count = ⌊max(0, monthlyProjectedSavings) ÷ unitCost⌋` per item; unit costs implied by the PDF example: water 2,600 RWF a week, bus ride 650, egg 200 | 5,200 → 2 weeks, 8 rides, 26 eggs; 1,733 → 0, 2, 8 | MISSING_APIS.pdf p. 10, owner-approved illustrative values (2026-10-27); unit costs are 5,200 ÷ the example counts, not market prices |
 | BR-26 | Tracker budget health (v0.7) | `exceeded` if spent > planned; `caution` if spent × daysInMonth > planned × daysElapsed; else `normal`; `null` without a plan | 118,400 by day 26 of 31 against 150,000 → normal (pace 125,806) | Backend rule, contract §11.10: the PDF shows `"normal"` with no formula |
 | BR-27 | Tracker burn rate (v0.7) | `average = round_half_up(spent ÷ elapsed)`; `projected = round_half_up(spent × daysInMonth ÷ elapsed)`; `projectedVsPlan = projected − planned` | 118,400 over 26 days → 4,554 a day, 141,169 projected, −8,831 vs 150,000 | Backend rule, contract §11.10: the PDF lists burn-rate with no body |
+| BR-28 | District price model (v0.8) | `price(d) = round_half_up(price(Gasabo) × food(d) ÷ food(Gasabo))`, the food lines at household size 4 (Gasabo 65,000); for the checklist, applied before BR-24; quantities unchanged | Musanze (food 50,000): 750 → 577, 800 → 615, 850 → 654; checklist 2,400 → 1,846, 8,650 → 6,654. Benchmark districts (food 65,000) keep Gasabo's prices | Owner decision 2026-10-28 (contract §11.3, §11.5): models `basket-details` staple prices and the `shopping-checklist` for the 29 districts the PDF does not cover. A model, not observed prices; market hubs are not modelled (`null`) |
 
 **Money** is whole RWF integers ([E] no decimals anywhere). **Percentages** shown to users are integers (20%) or 1-dp ratios (83.3%). Rounding modes are **[U] Q-17**.
 

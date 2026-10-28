@@ -30,8 +30,8 @@ Three version numbers exist. They are independent.
 |---|---|
 | Base URL | `/api/v1`. The health checks `/health` and `/ready` are at the root, outside `/api/v1`. |
 | Format | JSON, UTF-8. Field names are `camelCase`. |
-| Auth | `POST /auth/register` and `POST /auth/login` issue bearer tokens (v0.5, §11.8): citizen accounts, a Q-02 change made at the project owner's direction on 2026-10-28; Q-04 (decision-maker login) is unchanged. A current-account dependency verifies tokens; since v0.6 `GET` and `PATCH /user/profile` (§11.9) and since v0.7 every `/tracker/*` route (§11.10) require one. Every other endpoint stays public. |
-| Citizen data | Never stored (Q-02 resolved, Option A), with one exception since v0.5: `POST /auth/register` stores a household account (§11.8), and since v0.6 `PATCH /user/profile` changes it, including the planned essentials and savings buffer (§11.9), and since v0.7 the tracker stores the household's transactions (§11.10). Request bodies are processed and then discarded, never logged. Money values travel only in POST bodies, never in query strings, because hosting-platform access logs record full URLs. |
+| Auth | `POST /auth/register` and `POST /auth/login` issue bearer tokens (v0.5, §11.8): citizen accounts, a Q-02 change made at the project owner's direction on 2026-10-28; Q-04 (decision-maker login) is unchanged. A current-account dependency verifies tokens; since v0.6 `GET` and `PATCH /user/profile` (§11.9), since v0.7 every `/tracker/*` route (§11.10) and since v0.8 `/user/resilience-plan` (§11.11) require one. Every other endpoint stays public. |
+| Citizen data | Never stored (Q-02 resolved, Option A), with one exception since v0.5: `POST /auth/register` stores a household account (§11.8), and since v0.6 `PATCH /user/profile` changes it, including the planned essentials and savings buffer (§11.9), since v0.7 the tracker stores the household's transactions (§11.10), and since v0.8 `POST /user/resilience-plan` stores the household's saved resilience plan (§11.11). Request bodies are processed and then discarded, never logged. Money values travel only in POST bodies, never in query strings, because hosting-platform access logs record full URLs. |
 | Money | Integer RWF, e.g. `180000`. The frontend formats `180,000 RWF` and `18m RWF`. |
 | Numbers in responses | Every numeric field is a **JSON number, never a string**. Integers (money, counts, scores, months) are written without a decimal point. Fractional fields are written with no more decimal places than listed: ratios and shares 4 (`0.8333`), `runwayMonths` 1 (`7.5`, `10.0`), weights 2 (`0.4`), swap quantities 2 (`1`, `2`). |
 | Percent inputs | Integer 0–100. `20` means 20%. |
@@ -91,8 +91,9 @@ Content type: `application/problem+json`.
 | 404 | `not-found` | Unknown route | — |
 | 405 | `method-not-allowed` | Wrong HTTP method | — |
 | 401 | `invalid-credentials` | `POST /auth/login` only: unknown identifier or wrong password (one answer for both); carries `WWW-Authenticate: Bearer` (§11.8) | — |
-| 401 | `not-authenticated` | A protected route only (`GET` and `PATCH /user/profile`, §11.9): a missing, malformed, wrongly signed or expired bearer token, or one whose account no longer exists (one answer for all); carries `WWW-Authenticate: Bearer` (§11.8) | — |
+| 401 | `not-authenticated` | A protected route only (`/user/profile` §11.9, `/tracker/*` §11.10, `/user/resilience-plan` §11.11): a missing, malformed, wrongly signed or expired bearer token, or one whose account no longer exists (one answer for all); carries `WWW-Authenticate: Bearer` (§11.8) | — |
 | 404 | `transaction-not-found` | `PATCH`/`DELETE /tracker/transactions/{id}`: no transaction with this id belongs to the caller (another household's id included) (§11.10) | — |
+| 404 | `resilience-plan-not-found` | `GET`/`DELETE /user/resilience-plan`: the caller has no saved plan (§11.11) | — |
 | 409 | `identifier-taken` | `POST /auth/register` only: an account already uses this identifier (§11.8) | — |
 | 409 | `idempotency-key-reused` | `POST /tracker/transactions` only: the `Idempotency-Key` was used before with a different body (§11.10) | — |
 | 422 | `validation` | Field-level failures | `required`, `out_of_range`, `not_integer`, `unknown_value` (a bad enum or filter value), `too_long`, `unknown_field` (an extra body field); for the account (§11.8) and tracker (§11.10) endpoints, also `too_short` and `invalid_format` (each with a message naming the expected format) |
@@ -465,6 +466,7 @@ Rate limiting (429) is also optional. Every other code in §1.3 applies to all e
 | 0.5 rev 1 | 2026-10-28 | Security review fixes, frontend sign-off still pending. Identifiers are ASCII only: lookalikes (non-ASCII digits, invisible or fullwidth characters) are rejected, not normalised. A current-account dependency for future protected routes (new 401 `not-authenticated`; HS256 only; `sub`, `iat`, `exp` required; the account must exist); CORS allows `Authorization`. The Q-02/Q-04 wording is corrected and the open privacy decisions are listed (Q-13, Q-34). No endpoint added or changed in shape. |
 | 0.6 | 2026-10-28 | **Implemented by the backend at the project owner's direction; frontend sign-off pending.** Adds §11.9: `GET /api/v1/user/profile` (the PDF's response fields exactly) and `PATCH /api/v1/user/profile` in place of the PDF's `PUT` (owner direction; `PUT` gives 405). The PATCH body is a contract extension, not from the PDF (which lists `PUT` with no body): derived from the GET shape and approved by the project owner on 2026-10-28. Migration 0010 adds `planned_essentials`, `savings_buffer` (null until set) and `updated_at`. CORS allows `PATCH`; a 405's `Allow` header now lists every method of the path. |
 | 0.7 | 2026-10-28 | **Implemented by the backend at the project owner's direction; frontend sign-off pending.** Adds §11.10, the daily tracker: `GET /tracker/overview`, `GET`/`POST /tracker/transactions`, `PATCH`/`DELETE /tracker/transactions/{id}` (PATCH in place of the PDF's `PUT`), `GET /tracker/daily-trend` and `GET /tracker/burn-rate`; migration 0011 (`tracker_transactions`); BR-26 (budget health) and BR-27 (burn rate); new problem types `transaction-not-found` (404) and `idempotency-key-reused` (409); optional `Idempotency-Key` on POST; keyset pagination. CORS allows `DELETE` and `Idempotency-Key`. |
+| 0.8 | 2026-10-28 | **Implemented by the backend at the project owner's direction; frontend sign-off pending.** Completes the 21 `MISSING_APIS.pdf` endpoints. (1) **BR-28** district pricing (owner decision 2026-10-28): `basket-details` and `shopping-checklist` model every district other than Gasabo from the PDF's Gasabo values, scaled by the district's food line, so all 30 districts answer `available`; `basket-details` gains `valueBasis`, and `primaryMarketHub` stays `null` outside Gasabo, listed in `unavailableFields` (§11.3, §11.5). (2) The checklist's `totalEstimatedBasket` is the sum of its items and `estimatedSavings` = `unoptimizedBasket` − total (owner decision: 4,750 and 3,900 for the PDF example, which prints 6,250 and 2,400) (§11.5). (3) §11.11: `POST` (201 created, 200 replaced), `GET` and `DELETE /api/v1/user/resilience-plan`, behind login; the request is the resilience-simulation request; migration 0012 (`resilience_plans`); new problem type `resilience-plan-not-found` (404). A further Q-02 change (the plan is stored), not a privacy-policy approval. |
 
 ## 10. Official published statistics (contract v0.3)
 
@@ -560,24 +562,26 @@ All three endpoints are illustrative. **Gasabo and Musanze** use the PDF's examp
 
 **`GET /api/v1/districts/{code}/basket-details`.** No query parameters.
 - **Response:**
-  - `status` (an addition): `"available"` when every field has a value (Gasabo only); `"awaiting_validated_data"` when any field in `unavailableFields` is `null`. Unavailable numbers are `null`, never 0.
+  - `status` (an addition): `"available"` for every district since v0.8 (the basket and the staple prices always have values). `"awaiting_validated_data"` stays in the type for a district without them.
+  - `valueBasis` (an addition, v0.8): `"pdf_example"` for Gasabo; `"modelled_from_pdf_example"` for every other district (BR-28).
   - `districtCode`, plus `householdSize` (always 4).
   - `referenceRentIndex` and `referenceTransitPass`: the district basket's housing and transport lines (Gasabo 40,000 and 20,000, the PDF's example values; Musanze 28,000 and 14,000 from its example basket; elsewhere the benchmark's 40,000 and 20,000).
-  - `staplePriceIndex{irishPotatoesPerKg, sweetPotatoesPerKg, redBeansPerKg}` and `primaryMarketHub`: the PDF's example for **Gasabo only** (750, 800, 850 RWF per kg; "Kimironko Market"). Every other district gets **`null`**, because the PDF gives no other values; `unavailableFields` lists the null fields (`[]` for Gasabo).
+  - `staplePriceIndex{irishPotatoesPerKg, sweetPotatoesPerKg, redBeansPerKg}`: the PDF's example for **Gasabo** (750, 800, 850 RWF per kg). **Every other district** (owner decision 2026-10-28): Gasabo's prices × the district's food line ÷ Gasabo's (65,000), whole RWF half up (BR-28). Musanze (food 50,000) gives 577, 615 and 654; the 28 benchmark districts have Gasabo's food line, so they get Gasabo's prices. `assumptions` says `staple_prices_modelled_br_28_from_gasabo_by_the_food_line_not_observed`; these are model outputs, not market observations.
+  - `primaryMarketHub`: "Kimironko Market" for Gasabo (the PDF's); **`null`** elsewhere, because no market is sourced and none is invented (`assumptions`: `no_market_hub_is_known_for_this_district`). `unavailableFields` lists it (`[]` for Gasabo).
+  - `meta.provenance` is always set, because every staple price derives from the PDF example.
   - `assumptions` and `meta`.
 - **Errors:** 400; 404 `district-not-found`; 405.
 
 ### 11.4 Blocked by Q-02 and Q-04 (not served)
 
-Of the twelve PDF endpoints first listed here, only these remain unserved. The PDF's two `PUT`s are replaced by `PATCH` and answer 405. The resilience plan is still not stored: under Q-02 it stays on the device. A test (`test_privacy_blocked_pdf_endpoints_are_not_served`) keeps the routes out.
+Of the twelve PDF endpoints first listed here, only the PDF's two `PUT` methods remain unserved: they are replaced by `PATCH` and answer 405. A test (`test_replaced_pdf_methods_are_not_served`) keeps them out.
 
 | Endpoint | Needs |
 |---|---|
 | `PUT /api/v1/user/profile` | replaced by `PATCH` (v0.6, §11.9); `PUT` answers 405 |
 | `PUT /api/v1/tracker/transactions/{id}` | replaced by `PATCH` (v0.7, §11.10); `PUT` answers 405 |
-| `POST /api/v1/user/resilience-plan` | a stored plan (Q-02) |
 
-Register and login moved out of this list in v0.5 (§11.8), which supplies the accounts and tokens; the profile in v0.6 (§11.9); the tracker in v0.7 (§11.10). Serving the resilience plan needs the project owner to reopen Q-02 for their data, plus a privacy policy, consent (Q-13), the current-account dependency of §11.8 on each request, and ownership checks.
+Register and login moved out of this list in v0.5 (§11.8), which supplies the accounts and tokens; the profile in v0.6 (§11.9); the tracker in v0.7 (§11.10); the resilience plan in v0.8 (§11.11), when the project owner chose to store it behind login. A privacy policy and consent (Q-13) are still open for all of them.
 
 ### 11.5 Content endpoints
 
@@ -589,13 +593,13 @@ Each answers 200 with a `status`: `"available"` with content, or `"awaiting_vali
   - Additions: `month`, `seasons` (all three definitions), `source`, `assumptions`; `meta` is the official-statistics envelope (`isIllustrative: false`).
   - September belongs to both Season A (which starts) and Season C (which ends); it is reported as A, like the PDF. Kinyarwanda season names are omitted because sources disagree (the PDF's "Season A (Umuhindo)" becomes "Season A"). Without the source row, `status` is `awaiting_validated_data`.
 - **`GET /api/v1/market/shopping-checklist?district=&household_size=`** (the PDF's snake_case names). The district is validated (404 `district-not-found`) and `household_size` must be 1–20 (422).
-  - **Gasabo, household size 4** serves the **PDF's example** (page 11, owner-approved on 2026-10-27): three items (Fresh Sweet Potatoes 3 kg 2,400; Local Red Kidney Beans 2 kg 1,700; Fresh Amaranth Greens (Dodo) 3 bundles 650), `totalEstimatedBasket` 6,250, `unoptimizedBasket` 8,650 and `estimatedSavings` 2,400, with `provenance` set.
-  - **The PDF's totals are served as given.** Its three items sum to 4,750, not 6,250, and the PDF does not say what else the basket holds, so the totals are not derived from the items; `assumptions` says so (`totals_are_the_pdf_figures_not_the_sum_of_the_listed_items`). `estimatedSavings` = `unoptimizedBasket − totalEstimatedBasket` holds.
-  - **Gasabo, any other household size** (approved by the project owner on 2026-10-27) serves the size-4 example scaled by BR-24, factor √(`household_size` ÷ 4), with `valueBasis: "modelled_from_pdf_example"`. Each `estPrice` and the `totalEstimatedBasket` and `unoptimizedBasket` are the PDF figures × factor, rounded half up to whole RWF; `estimatedSavings` = scaled `unoptimizedBasket` − scaled `totalEstimatedBasket`; each quantity is the PDF amount × factor, rounded half up to 0.1 in the same unit ("3 kg" at size 5 is "3.4 kg"; ".0" is dropped). Prices are scaled from the PDF price, not recomputed from the rounded quantity. Supported sizes are the validated 1–20. The scaled total keeps the PDF's unexplained gap (at size 4, 6,250 against items summing to 4,750); no item is added. `assumptions` names the model and the rounding; these are model outputs, not market observations.
-  - **`valueBasis`** (an addition): `"pdf_example"` at size 4, `"modelled_from_pdf_example"` at other sizes, `null` when awaiting data.
-  - **Every other district** answers `awaiting_validated_data` with `items` `[]`, null totals and `valueBasis` `null`: the PDF gives no other checklist and no checked source publishes one (`docs/architecture/district-price-evidence.md`).
+  - **Gasabo, household size 4** serves the **PDF's items** (page 11, owner-approved on 2026-10-27): Fresh Sweet Potatoes 3 kg 2,400; Local Red Kidney Beans 2 kg 1,700; Fresh Amaranth Greens (Dodo) 3 bundles 650; `unoptimizedBasket` 8,650; `provenance` set.
+  - **Totals (owner decision, 2026-10-28; v0.8).** `totalEstimatedBasket` is the **sum of the items** (4,750 in the example) and `estimatedSavings` = `unoptimizedBasket` − `totalEstimatedBasket` (3,900), as the frontend's `SmartMarketChecklist` computes it. The PDF prints 6,250 and 2,400, which its items do not add up to; `assumptions` says so (`total_is_the_sum_of_the_listed_items_not_the_pdf_printed_6250`).
+  - **Other districts** (owner decision, 2026-10-28; v0.8): each `estPrice` and the `unoptimizedBasket` are Gasabo's × the district's food line ÷ Gasabo's, half up (BR-28); the quantities are Gasabo's. Musanze at size 4: 1,846, 1,308 and 500, total 3,654, unoptimized 6,654, savings 3,000. The 28 benchmark districts have Gasabo's food line, so their figures equal Gasabo's (`assumptions` adds `benchmark_is_one_illustrative_basket_for_every_district`).
+  - **Other household sizes** (approved on 2026-10-27): the district's size-4 list scaled by BR-24, factor √(`household_size` ÷ 4). Each `estPrice` and the `unoptimizedBasket` × factor, rounded half up to whole RWF, applied after BR-28; each quantity is the amount × factor, rounded half up to 0.1 in the same unit ("3 kg" at size 5 is "3.4 kg"; ".0" is dropped). Prices are scaled from the price, not recomputed from the rounded quantity. The total and savings follow the same two rules as at size 4. Supported sizes are the validated 1–20.
+  - **`valueBasis`** (an addition): `"pdf_example"` for Gasabo at size 4; `"modelled_from_pdf_example"` for every other district or size. `assumptions` names each model and the rounding; modelled figures are not market observations. Every district answers `available` since v0.8.
 
-When a cited source is added, `status` becomes `"available"` and the fields fill in without any shape change.
+When a cited source is added, its values replace the model without any shape change (`valueBasis` would then name the source).
 
 ### 11.6 Reconciliation with `MISSING_APIS.pdf` (21 endpoints)
 
@@ -605,15 +609,15 @@ When a cited source is added, `status` becomes `"available"` and the fields fill
 | 3–4 | `GET`/`PUT /user/profile` | Complete (v0.6, §11.9): `GET` exactly the PDF's response fields; `PUT` replaced by `PATCH` at the owner's direction, with a body that is a contract extension approved by the owner on 2026-10-28 (the PDF lists `PUT` with no body; derived from the GET shape) |
 | 5–11 | `/tracker/*` (overview, transactions ×4, daily-trend, burn-rate) | Complete (v0.7, §11.10): overview, transaction list, POST and daily trend follow the PDF's bodies (list items add `note`, the list adds `nextCursor`); `PUT` replaced by `PATCH`; the PATCH and DELETE bodies, `burn-rate` and the budget-health rule are contract extensions the PDF does not specify |
 | 12 | `GET /calculations/district-comparison` | Complete (illustrative): the PDF example exactly (Gasabo vs Musanze, §11.7); any household size (BR-24); districts without a PDF basket use the shared benchmark |
-| 13 | `GET /districts/{code}/basket-details` | Partial: the PDF example exactly for Gasabo; other districts have rent and transit but `null` staple prices and market hub (the PDF gives none) |
+| 13 | `GET /districts/{code}/basket-details` | Complete (illustrative, v0.8): the PDF example exactly for Gasabo; the other 29 districts' staple prices modelled from it by BR-28 (`valueBasis`); `primaryMarketHub` `null` outside Gasabo (none is sourced) |
 | 14 | `POST /calculations/stress-test` | Complete with one documented deviation: totals as in the PDF; `bufferImpactMonths` is BR-22 (−0.8), not the PDF's −1.2, which no stated formula produces (§11.3) |
 | 15 | `GET /shocks/catalog` | Complete (illustrative): the PDF's three example shocks, plus `harvest_disruption` with `null` defaults (the PDF gives none, §11.1) |
 | 16 | `POST /calculations/resilience-simulation` | Complete with one documented deviation: the PDF's gaps, buffer and runway (14.2) exactly; score is BR-19 (95 / +28, integer), not the PDF's 88 / "+26", which no stated formula produces (§11.1) |
-| 17 | `POST /user/resilience-plan` | Blocked: Q-02 (§11.4) |
+| 17 | `POST /user/resilience-plan` | Complete (v0.8, §11.11): stored behind login at the owner's direction; the PDF gives no body, so the request is the resilience-simulation request and the response is a contract extension; `GET` and `DELETE` added |
 | 18 | `POST /calculations/agro-savings-projection` | Complete (illustrative): the PDF example exactly, including 2 weeks / 8 rides / 26 eggs (BR-25, §11.2) |
 | 19 | `GET /nutrition/indyo-yuzuye` | Complete (illustrative): the PDF example, not presented as official guidance (§11.5) |
 | 20 | `GET /agro/harvest-calendar` | Complete with official NISR SAS 2025 data (§11.5); Kinyarwanda season name omitted |
-| 21 | `GET /market/shopping-checklist` | Partial: the PDF example for Gasabo at size 4 (totals as given) and BR-24-modelled for Gasabo at sizes 1–20; other districts `awaiting_validated_data` (§11.5) |
+| 21 | `GET /market/shopping-checklist` | Complete with one documented deviation (v0.8): the PDF's items for Gasabo at size 4, BR-28 for the other districts and BR-24 for sizes 1–20; the total is the sum of the items (4,750), not the PDF's printed 6,250 (owner decision, §11.5) |
 
 ### 11.7 Owner-approved PDF example values (illustrative)
 
@@ -622,25 +626,25 @@ On 2026-10-27 the project owner approved serving the example values in `MISSING_
 | Values (PDF page) | Served by | Scope |
 |---|---|---|
 | Gasabo and Musanze baskets (p. 7) | `district-comparison`, `stress-test`, `basket-details` (rent and transit) | those two districts; others use the shared benchmark |
-| Gasabo staple prices and "Kimironko Market" (p. 7) | `basket-details` | Gasabo only; others `null` |
+| Gasabo staple prices and "Kimironko Market" (p. 7) | `basket-details` | prices: Gasabo as given, other districts modelled by BR-28; market: Gasabo only, others `null` |
 | Shock defaults and lever amounts (p. 9) | `shocks/catalog`, `resilience-simulation` | as listed in §11.1 |
 | Purchasing-power items, as unit costs implied by the example (p. 10) | `agro-savings-projection` | every swap and frequency (BR-25) |
 | Balanced plate and energy tip (p. 10) | `nutrition/indyo-yuzuye` | always |
-| Checklist items and totals (p. 11) | `market/shopping-checklist` | Gasabo; size 4 as given, other sizes modelled by BR-24 (`valueBasis`) |
+| Checklist items and unoptimized basket (p. 11) | `market/shopping-checklist` | Gasabo size 4 as given; other districts by BR-28 and other sizes by BR-24 (`valueBasis`); the total is the items' sum |
 
-**Not extended.** Nothing is invented for districts or items the PDF does not show: those fields stay `null` or `[]`, or the response says `awaiting_validated_data`. The one extension is the owner-approved BR-24 scaling of the Gasabo checklist to other household sizes, labelled `modelled_from_pdf_example`.
+**Extensions, all owner-approved and labelled `modelled_from_pdf_example`.** BR-24 scaling of the Gasabo checklist to other household sizes (2026-10-27), and BR-28 scaling of the Gasabo staple prices and checklist to the other districts by their food line (2026-10-28). Nothing else is invented: no item the PDF does not list, and no market hub outside Gasabo (`null`).
 
 **Inconsistencies in the PDF, and what is served:**
 - `stress-test` `bufferImpactMonths` −1.2 and `resilience-simulation` score 88 / "+26": no stated formula produces them; BR-22 and BR-19 are served, with the evidence in §11.3 and §11.1.
-- Checklist: the items sum to 4,750 but the total is 6,250; the totals are served as given.
+- Checklist: the items sum to 4,750 but the PDF prints a total of 6,250 (and savings of 2,400). Since v0.8 the sum of the items is served (owner decision, 2026-10-28), with savings of 3,900.
 - `harvestHighlights` in the PDF ("Plentiful sweet potatoes & cassava"…) are not served, because the harvest calendar is official NISR data (§11.5) and is not mixed with example text.
 - `/budget-benchmarks` (contract §4) is unchanged and still returns the shared benchmark for Musanze (150,000), while the v0.4 advisor uses the PDF's 115,000.
 
-**Open decisions (owner or data needed).** These keep #13 and #21 partial; the responses say `awaiting_validated_data` until one is closed. The sources checked for them (WFP market prices on HDX, NISR CPI, MINAGRI e-Soko) and the candidate values found are recorded in `docs/architecture/district-price-evidence.md`; none is served.
-1. **#13 staple prices and market hub for the 29 districts other than Gasabo.** Needs, per district: price per kg of Irish potatoes, sweet potatoes and red beans, and a named market, either from a citable source (publisher, title, date, URL or file hash, geography) or as values the owner supplies and approves as illustrative. The WFP data has current Irish-potato and dry-bean prices for five districts only, no sweet-potato price since 2015 and no primary-market attribute (evidence §3 and §5).
-2. **#21 checklist for districts other than Gasabo.** Needs, per district: item names, quantities and prices, `totalEstimatedBasket`, `unoptimizedBasket` and `estimatedSavings`, from the same kinds of source, plus a definition of `unoptimizedBasket` (the PDF does not define it).
+**Former open decisions, closed on 2026-10-28 (v0.8).** Decisions 1, 2 and 4 are closed by the owner's choices: model the other districts from Gasabo (BR-28; market hubs stay `null`) and serve the sum of the items. Observed prices would still be better than the model; the sources checked (WFP market prices on HDX, NISR CPI, MINAGRI e-Soko) and the candidate values found are recorded in `docs/architecture/district-price-evidence.md`, and none is served. The original wording is kept below for the record.
+1. ~~**#13 staple prices and market hub for the 29 districts other than Gasabo.**~~ Closed by BR-28 (prices); market hubs stay `null`. Needs, per district: price per kg of Irish potatoes, sweet potatoes and red beans, and a named market, either from a citable source (publisher, title, date, URL or file hash, geography) or as values the owner supplies and approves as illustrative. The WFP data has current Irish-potato and dry-bean prices for five districts only, no sweet-potato price since 2015 and no primary-market attribute (evidence §3 and §5).
+2. ~~**#21 checklist for districts other than Gasabo.**~~ Closed by BR-28. Needs, per district: item names, quantities and prices, `totalEstimatedBasket`, `unoptimizedBasket` and `estimatedSavings`, from the same kinds of source, plus a definition of `unoptimizedBasket` (the PDF does not define it).
 3. ~~**#21 household sizes other than 4.**~~ Closed on 2026-10-27: the owner approved BR-24 scaling of the Gasabo example (§11.5).
-4. **#21 the 4,750 vs 6,250 discrepancy.** Needs the owner to say whether the example list is partial (and give the missing items) or which figure is wrong. Until then the total is served as 6,250 (scaled at other sizes) and no item is invented.
+4. ~~**#21 the 4,750 vs 6,250 discrepancy.**~~ Closed: the owner chose the sum of the items (4,750); no item is invented.
 
 ### 11.8 Household accounts: register and login (contract v0.5)
 
@@ -753,3 +757,21 @@ A category of the other type is 422 `unknown_value`; the database enforces the s
 Also open: frontend sign-off on v0.7, Q-13 (retention, deletion, consent: the tracker stores free-text titles and notes) and Q-34 (the "does not collect or save your details" copy). Known minor behaviours, not yet changed: a transaction dated up to 5 minutes ahead can fall on a Kigali day that `?date=` still calls the future; `month` is not range-checked when `date` is also given; there is no rate limit or per-account cap on transactions; `leftAfterPlan` is negative when the plan exceeds income.
 
 **Storage (migration 0011).** `tracker_transactions`: id, account (cascading), type, category, title, note, amount, time, idempotency key and body hash, created and updated times. CHECK constraints repeat the API's rules (type/category pairs, amount range, non-blank title, note length), and one index on (account, time, id) serves every query.
+
+### 11.11 Saved resilience plan (contract v0.8)
+
+**Status.** Implemented on 2026-10-28 at the project owner's direction ("store it, behind login"); frontend sign-off pending. `MISSING_APIS.pdf` lists `POST /user/resilience-plan` in its inventory with **no request or response body**, so everything below except the path and method is a contract extension defined by the backend. Every route needs `Authorization: Bearer <token>` (§11.8: 401 `not-authenticated`, 503 `auth-not-configured`) and works only on the caller's own plan. Storing the plan is a further use of the Q-02 change of §11.8 (citizen data on the server), not a privacy-policy approval: Q-13 and Q-34 stay open. Deleting an account deletes its plan.
+
+**`POST /api/v1/user/resilience-plan`** → `201` for the household's first plan, `200` when it replaces an earlier one (one plan per household; the last save wins).
+- **Request:** exactly the `POST /calculations/resilience-simulation` request (§11.1): `{baseline{monthlyIncome, monthlyEssentials, savings}, shock{type, incomeReductionPct?, durationMonths, amount?}, activeCopingLevers[]}`. It is validated exactly as the simulation is (same 422 errors), before anything is written, so a plan that saves is one that simulates.
+- **Response:** `{baseline, shock{type, incomeReductionPct, durationMonths, amount}, activeCopingLevers, simulation, savedAt, meta}`. `shock` echoes what was sent, with `null` for an absent field (a lump sum without `amount` uses the catalogue's default, which `simulation.shockCostMonthly` shows). `simulation` is the simulation response's fields without its `meta` (`rawMonthlyGap` … `assumptions`). `savedAt` is the last save, ISO 8601 in UTC. `meta` is the illustrative envelope with `provenance` (the shocks and levers are PDF example values).
+
+**`GET /api/v1/user/resilience-plan`** → `200` with the same shape, or 404 `resilience-plan-not-found`. Only the inputs are stored; `simulation` is recomputed on every read from them, so it can never disagree with them.
+
+**`DELETE /api/v1/user/resilience-plan`** → `204`, no body; 404 `resilience-plan-not-found` when there is no plan. `PUT` answers 405.
+
+**Errors:** 400 (malformed JSON, any query parameter); 401; 404 as above; 405; 422 (the simulation's rules); 503.
+
+**Storage (migration 0012).** `resilience_plans`, keyed by account (cascading): the baseline, the shock type, reduction, duration and amount, the lever ids (in the household's order), and created and updated times. No free text. CHECK constraints repeat the API's rules (ranges, a lump sum takes an amount and no reduction and an income shock the reverse, known levers each at most once). A save is one `INSERT … ON CONFLICT DO UPDATE`, so concurrent saves never fail.
+
+**Pending owner approval:** the response shape, one plan per household (not a history), the `201`/`200` split, and the added `GET` and `DELETE`.

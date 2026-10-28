@@ -1,4 +1,4 @@
-"""District Budget Advisor (contract v0.4 §11.3 and §11.7; BR-21 to BR-24).
+"""District Budget Advisor (contract v0.4 §11.3 and §11.7; BR-21 to BR-24, BR-28).
 
 Read-only and illustrative. Gasabo and Musanze use the MISSING_APIS.pdf example baskets
 (owner-approved 2026-10-27; `app/core/pdf_examples.py`). Every other district uses the one
@@ -6,6 +6,10 @@ seeded benchmark basket, the same for every district at household size 4 ([PD] Q
 such districts show no difference. That is reported as it is; no other district-specific
 numbers are invented. Other household sizes scale the size-4 basket line by line with the
 square-root equivalence scale (BR-24), approved by the project owner on 2026-10-27.
+
+The basket drawer's staple prices are the PDF's for Gasabo. For every other district they are
+modelled from Gasabo's by the district's food line (BR-28, approved on 2026-10-28) and say so in
+`valueBasis`; the market hub is the PDF's for Gasabo and null elsewhere (never invented).
 """
 
 from typing import Annotated, Final, NamedTuple
@@ -15,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.calculations import (
     buffer_impact_months,
+    district_price_scaled,
     district_variance,
     percent_increase,
     square_root_scaled,
@@ -25,8 +30,10 @@ from app.core.pdf_examples import (
     EXAMPLE_HOUSEHOLD_SIZE,
     MARKET_HUBS,
     PROVENANCE,
+    REFERENCE_DISTRICT,
     STAPLE_PRICES,
     Provenance,
+    StaplePrices,
 )
 from app.core.stress_scenarios import STRESS_SCENARIOS
 from app.data.reference import BENCHMARK_HOUSEHOLD_SIZE
@@ -55,16 +62,36 @@ EXAMPLE_BASKET: Final = "gasabo_and_musanze_baskets_are_missing_apis_pdf_example
 NOT_OBSERVED: Final = "not_observed_district_data"
 # The PDF's −1.2 for its own example is not produced by any formula it states (contract §11.3).
 NOT_THE_PDF_FIGURE: Final = "buffer_impact_is_br_22_the_pdf_example_figure_is_not_derivable"
+MODELLED_STAPLES: Final = "staple_prices_modelled_br_28_from_gasabo_by_the_food_line_not_observed"
+NO_MARKET_HUB: Final = "no_market_hub_is_known_for_this_district"
 
 
-class _Basket(NamedTuple):
+class BasketAmounts(NamedTuple):
     code: str
     name: str
     amounts: dict[str, int]
     from_example: bool  # a MISSING_APIS.pdf example basket rather than the shared benchmark
 
 
-def _basket_notes(*baskets: _Basket) -> tuple[list[str], Provenance | None]:
+class PriceModel(NamedTuple):
+    """BR-28 for one district: the reference district's (Gasabo's) prices, scaled by food line."""
+
+    basket: BasketAmounts  # the district's basket at household size 4
+    reference_food: int  # Gasabo's food line at household size 4
+
+    @property
+    def is_reference(self) -> bool:
+        """True for Gasabo itself, whose prices are the PDF's rather than modelled."""
+        return self.basket.code == REFERENCE_DISTRICT
+
+    def price(self, reference_price: int) -> int:
+        if self.is_reference:
+            return reference_price
+        food = self.basket.amounts["food"]
+        return district_price_scaled(reference_price, food, self.reference_food)
+
+
+def _basket_notes(*baskets: BasketAmounts) -> tuple[list[str], Provenance | None]:
     """The basket assumptions, and the provenance if any basket is a PDF example."""
     from_example = [basket.from_example for basket in baskets]
     notes = [EXAMPLE_BASKET] if any(from_example) else []
@@ -88,7 +115,7 @@ class DistrictAdvisorService:
         self._reference = reference
         self._benchmarks = benchmarks
 
-    def _basket(self, district_code: str, household_size: int) -> _Basket:
+    def basket(self, district_code: str, household_size: int) -> BasketAmounts:
         """The district's size-4 basket scaled to `household_size` (BR-24).
 
         The MISSING_APIS.pdf example basket where the PDF gives one, else the seeded benchmark.
@@ -104,10 +131,17 @@ class DistrictAdvisorService:
             code: square_root_scaled(amount, household_size, BENCHMARK_HOUSEHOLD_SIZE)
             for code, amount in base.items()
         }
-        return _Basket(district.code, district.name, amounts, example is not None)
+        return BasketAmounts(district.code, district.name, amounts, example is not None)
+
+    def price_model(self, district_code: str) -> PriceModel:
+        """BR-28 for the district (404 `district-not-found` for an unknown code)."""
+        return PriceModel(
+            self.basket(district_code, BENCHMARK_HOUSEHOLD_SIZE),
+            DISTRICT_BASKETS[REFERENCE_DISTRICT]["food"],
+        )
 
     def stress_test(self, request: StressTestRequest) -> StressTestResponse:
-        basket = self._basket(request.district, request.household_size)
+        basket = self.basket(request.district, request.household_size)
         shocks = STRESS_SCENARIOS[request.scenario]
         increase = sum(percent_increase(basket.amounts[code], pct) for code, pct in shocks.items())
         baseline = sum(basket.amounts.values())
@@ -128,8 +162,8 @@ class DistrictAdvisorService:
         )
 
     def compare(self, query: DistrictComparisonQuery) -> DistrictComparisonResponse:
-        a = self._basket(query.district_a, query.household_size)
-        b = self._basket(query.district_b, query.household_size)
+        a = self.basket(query.district_a, query.household_size)
+        b = self.basket(query.district_b, query.household_size)
         variance = district_variance(CATEGORY_ORDER, a.amounts, b.amounts)
         notes, provenance = _basket_notes(a, b)
         return DistrictComparisonResponse(
@@ -156,32 +190,32 @@ class DistrictAdvisorService:
         )
 
     def basket_details(self, district_code: str) -> BasketDetailsResponse:
-        basket = self._basket(district_code, BASKET_DETAILS_HOUSEHOLD_SIZE)
-        staples = STAPLE_PRICES.get(basket.code)
+        model = self.price_model(district_code)  # BASKET_DETAILS_HOUSEHOLD_SIZE is size 4
+        basket = model.basket
+        reference: StaplePrices = STAPLE_PRICES[REFERENCE_DISTRICT]
         hub = MARKET_HUBS.get(basket.code)
         notes, provenance = _basket_notes(basket)
-        unavailable = [
-            field
-            for field, value in (("staplePriceIndex", staples), ("primaryMarketHub", hub))
-            if value is None
-        ]
-        if unavailable:
-            notes.append("no_staple_prices_or_market_hub_in_the_pdf_for_this_district")
+        if not model.is_reference:
+            notes.append(MODELLED_STAPLES)
+        if hub is None:
+            notes.append(NO_MARKET_HUB)
         return BasketDetailsResponse(
-            status="awaiting_validated_data" if unavailable else "available",
+            status="available",
+            value_basis="pdf_example" if model.is_reference else "modelled_from_pdf_example",
             district_code=basket.code,
             household_size=BASKET_DETAILS_HOUSEHOLD_SIZE,
             reference_rent_index=basket.amounts["housing"],
             reference_transit_pass=basket.amounts["transport"],
             staple_price_index=StaplePriceIndex(
-                irish_potatoes_per_kg=staples.irish_potatoes_per_kg if staples else None,
-                sweet_potatoes_per_kg=staples.sweet_potatoes_per_kg if staples else None,
-                red_beans_per_kg=staples.red_beans_per_kg if staples else None,
+                irish_potatoes_per_kg=model.price(reference.irish_potatoes_per_kg),
+                sweet_potatoes_per_kg=model.price(reference.sweet_potatoes_per_kg),
+                red_beans_per_kg=model.price(reference.red_beans_per_kg),
             ),
             primary_market_hub=hub,
-            unavailable_fields=unavailable,
+            unavailable_fields=[] if hub is not None else ["primaryMarketHub"],
             assumptions=[*notes, "rent_and_transit_are_the_basket_housing_and_transport_lines"],
-            meta=ExampleMeta(provenance=provenance),
+            # Every staple price derives from the PDF example, so the provenance is always set.
+            meta=ExampleMeta(provenance=provenance or PROVENANCE),
         )
 
 
