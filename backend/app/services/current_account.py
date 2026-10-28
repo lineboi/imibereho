@@ -1,8 +1,8 @@
-"""The current household account, for future protected routes (contract §11.8).
+"""The current household account, for protected routes (contract §11.8).
 
-No route uses it yet: the PDF's profile and tracker endpoints stay unserved (§11.4). A protected
-route declares `account: CurrentAccountDep` and receives the account of a valid bearer token, or
-the request ends in 401 `not-authenticated` with `WWW-Authenticate: Bearer`.
+Used by `GET` and `PATCH /user/profile` (§11.9); the tracker endpoints stay unserved (§11.4). A
+protected route declares `account: CurrentAccountDep` and receives the account of a valid bearer
+token, or the request ends in 401 `not-authenticated` with `WWW-Authenticate: Bearer`.
 
 The token comes from `Authorization: Bearer <token>` and is verified by
 `app.core.security.verify_token` (HS256 only; `sub`, `iat` and `exp` required). Its subject must
@@ -42,6 +42,8 @@ class CurrentAccount:
     monthly_income: int
     currency: str
     preferred_language: str
+    planned_essentials: int | None
+    savings_buffer: int | None
 
 
 def get_current_account(
@@ -70,6 +72,8 @@ def get_current_account(
         monthly_income=account.monthly_income,
         currency=account.currency,
         preferred_language=account.preferred_language,
+        planned_essentials=account.planned_essentials,
+        savings_buffer=account.savings_buffer,
     )
 
 

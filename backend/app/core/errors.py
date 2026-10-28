@@ -12,8 +12,10 @@ from typing import Any, ClassVar, Final
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.routing import iter_route_contexts
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse, Response
+from starlette.routing import compile_path
 
 from app.core.constants import PROBLEM_MEDIA_TYPE, PROBLEM_TYPE_BASE
 
@@ -291,13 +293,29 @@ async def problem_error_handler(request: Request, exc: Exception) -> Response:
     )
 
 
+def _allowed_methods(request: Request) -> str | None:
+    """Every method the path supports, for the 405 `Allow` header (RFC 9110 §15.5.6).
+
+    Starlette lists only the first route that matches the path, so a path served by two routes
+    (`GET` and `PATCH /user/profile`) would advertise one. This joins every effective route
+    (included routers resolved to their full paths, as for the access-log templates) whose path
+    matches the request.
+    """
+    path = request.url.path
+    methods: set[str] = set()
+    for context in iter_route_contexts(request.app.routes):
+        if context.path and context.methods and compile_path(context.path)[0].match(path):
+            methods.update(context.methods)
+    return ", ".join(sorted(methods)) if methods else None
+
+
 async def http_exception_handler(request: Request, exc: Exception) -> Response:
     if not isinstance(exc, StarletteHTTPException):  # registered for this type only
         raise exc
     if exc.status_code == 404:
         return problem_response("not-found", "Not found", 404, "No resource exists at this path.")
     if exc.status_code == 405:
-        allow = (exc.headers or {}).get("Allow")
+        allow = _allowed_methods(request) or (exc.headers or {}).get("Allow")
         return problem_response(
             "method-not-allowed",
             "Method not allowed",

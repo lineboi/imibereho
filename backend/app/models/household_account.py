@@ -5,7 +5,9 @@ direction: a Q-02 change for this table only (citizen accounts, Option C; Q-02 o
 nothing a person sends). Q-04, decision-maker login, is unchanged. Retention, deletion and
 consent (Q-13) are open. It keeps
 the minimum the PDF's register request carries: the login identifier, an Argon2id hash of the
-password (never the password), and the profile fields. No name and nothing finer than a district.
+password (never the password), and the profile fields; since migration 0010 also the planned
+essentials and savings buffer that PATCH /user/profile sets (contract §11.9). No name and nothing
+finer than a district.
 """
 
 from datetime import datetime
@@ -24,6 +26,14 @@ class HouseholdAccount(Base):
         CheckConstraint("monthly_income BETWEEN 0 AND 100000000", name="monthly_income_range"),
         CheckConstraint("currency = 'RWF'", name="currency_known"),
         CheckConstraint("preferred_language IN ('EN', 'RW')", name="preferred_language_known"),
+        CheckConstraint(
+            "planned_essentials IS NULL OR planned_essentials BETWEEN 0 AND 100000000",
+            name="planned_essentials_range",
+        ),
+        CheckConstraint(
+            "savings_buffer IS NULL OR savings_buffer BETWEEN 0 AND 100000000",
+            name="savings_buffer_range",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(30), primary_key=True)  # "usr_" + a ULID
@@ -35,4 +45,9 @@ class HouseholdAccount(Base):
     monthly_income: Mapped[int] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(3))
     preferred_language: Mapped[str] = mapped_column(String(2))
+    # Profile values register does not collect (contract §11.9): NULL until the household sets
+    # them with PATCH /user/profile, never a default 0.
+    planned_essentials: Mapped[int | None] = mapped_column(Integer)
+    savings_buffer: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

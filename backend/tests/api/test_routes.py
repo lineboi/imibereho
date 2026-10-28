@@ -54,6 +54,9 @@ EXTENSION_ENDPOINTS: Final = frozenset(
         # Contract §11.8: citizen accounts (a Q-02 change for one table, 2026-10-28).
         ("POST", "/api/v1/auth/register"),
         ("POST", "/api/v1/auth/login"),
+        # Contract §11.9: the profile, with PATCH instead of the PDF's PUT (owner direction).
+        ("GET", "/api/v1/user/profile"),
+        ("PATCH", "/api/v1/user/profile"),
     }
 )
 # What this build ships. Optional endpoints not built: /methodology, /demo-household.
@@ -84,8 +87,7 @@ def test_routes_equal_the_implemented_endpoints(stub_app: FastAPI) -> None:
 # login are served since contract §11.8.
 PRIVACY_BLOCKED_ENDPOINTS: Final = frozenset(
     {
-        ("GET", "/api/v1/user/profile"),
-        ("PUT", "/api/v1/user/profile"),
+        ("PUT", "/api/v1/user/profile"),  # replaced by PATCH (contract §11.9)
         ("GET", "/api/v1/tracker/overview"),
         ("GET", "/api/v1/tracker/transactions"),
         ("POST", "/api/v1/tracker/transactions"),
@@ -101,7 +103,8 @@ PRIVACY_BLOCKED_ENDPOINTS: Final = frozenset(
 def test_privacy_blocked_pdf_endpoints_are_not_served(stub_app: FastAPI) -> None:
     assert not PRIVACY_BLOCKED_ENDPOINTS & app_endpoints(stub_app)
     paths = {path for _, path in app_endpoints(stub_app)}
-    assert not {p for p in paths if p.startswith(("/api/v1/user", "/api/v1/tracker"))}
+    assert not {p for p in paths if p.startswith("/api/v1/tracker")}
+    assert {p for p in paths if p.startswith("/api/v1/user")} == {"/api/v1/user/profile"}
     assert {p for p in paths if p.startswith("/api/v1/auth")} == {
         "/api/v1/auth/register", "/api/v1/auth/login",
     }  # fmt: skip
@@ -129,14 +132,21 @@ def test_v1_router_itself_has_no_prefix() -> None:
 
 
 def test_central_router_mounts_v1_once() -> None:
-    v1_paths = [context.path or "" for context in iter_route_contexts(v1_router.routes)]
+    # A route is (methods, path): one path may carry several routes (GET and PATCH
+    # /user/profile), but no route may be mounted twice.
+    v1_routes = [
+        (frozenset(context.methods or ()), context.path or "")
+        for context in iter_route_contexts(v1_router.routes)
+    ]
     mounted = [
-        context.path or ""
+        (frozenset(context.methods or ()), context.path or "")
         for context in iter_route_contexts(api_router.routes)
         if (context.path or "").startswith(API_PREFIX)
     ]
-    assert len(mounted) == len(set(mounted)) == len(v1_paths)
-    assert sorted(mounted) == sorted(f"{API_PREFIX}{path}" for path in v1_paths)
+    assert len(mounted) == len(set(mounted)) == len(v1_routes)
+    assert sorted(mounted, key=str) == sorted(
+        ((methods, f"{API_PREFIX}{path}") for methods, path in v1_routes), key=str
+    )
 
 
 def test_openapi_versions_are_kept_separate(stub_app: FastAPI) -> None:
@@ -192,6 +202,16 @@ def test_cors_exposes_the_request_id_on_simple_requests(client: TestClient) -> N
     assert response.headers["access-control-expose-headers"] == "X-Request-ID"
 
 
-def test_no_authentication_is_required(stub_app: FastAPI) -> None:
+def test_only_the_profile_requires_authentication(stub_app: FastAPI) -> None:
+    """One bearer scheme, used by exactly GET and PATCH /user/profile (contract §11.9)."""
     schema = stub_app.openapi()
-    assert "securitySchemes" not in schema.get("components", {})
+    assert schema["components"]["securitySchemes"] == {
+        "bearerToken": {"type": "http", "scheme": "bearer"}
+    }
+    protected = {
+        (method.upper(), path)
+        for path, operations in schema["paths"].items()
+        for method, operation in operations.items()
+        if operation.get("security")
+    }
+    assert protected == {("GET", "/api/v1/user/profile"), ("PATCH", "/api/v1/user/profile")}

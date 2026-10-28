@@ -161,7 +161,7 @@ Seeding: all demo values in the design should become a **seed dataset** so the f
 | `/calculations/budget-comparison` | POST | **Optional** §6 | C3 | [I] |
 | `/demo-household` | GET | **Optional** §6 | C1, C2 | [I] |
 | `/health`, `/ready` (root, not under `/api/v1`) | GET | Core §2 | — | — |
-| `/auth/*`, `/me` | `POST /auth/register`, `POST /auth/login` | Built 2026-10-28 (contract §11.8); `/me` not built | Avatar | — |
+| `/auth/*`, `/me` | `POST /auth/register`, `POST /auth/login`; `GET`/`PATCH /user/profile` | Built 2026-10-28 (contract §11.8, §11.9; the profile plays the role of `/me`) | Avatar | — |
 | `/households/*`, `/expenses` | — | Not built (Q-02 resolved as Option A) | C1, C2 | — |
 
 No search, sorting UI or pagination is designed. Lists are bounded (30 districts, 5 categories, a few swaps). The ranking is "top N by score desc". **[E]/[I]**

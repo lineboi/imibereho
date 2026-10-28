@@ -71,6 +71,8 @@ ACCOUNT_COLUMNS: Final = frozenset(
     {
         "id", "identifier", "password_hash", "district_code", "household_size", "monthly_income",
         "currency", "preferred_language", "created_at",
+        # Contract §11.9 (migration 0010): the rest of the PDF's GET profile, and its last change.
+        "planned_essentials", "savings_buffer", "updated_at",
     }
 )  # fmt: skip
 
