@@ -180,6 +180,17 @@ class TransactionNotFoundError(ProblemError):
         super().__init__("No transaction with this id exists in your tracker.")
 
 
+class ResiliencePlanNotFoundError(ProblemError):
+    """The caller has not saved a resilience plan (or deleted it)."""
+
+    slug = "resilience-plan-not-found"
+    title = "Resilience plan not found"
+    status = 404
+
+    def __init__(self) -> None:
+        super().__init__("You have not saved a resilience plan.")
+
+
 class IdempotencyKeyReusedError(ProblemError):
     slug = "idempotency-key-reused"
     title = "Idempotency key reused"

@@ -2,8 +2,9 @@
 
 Both serve the PDF's example values, approved by the project owner as illustrative data and
 labelled with `meta.provenance`. They are not official guidance or market prices. The checklist
-example exists only for Gasabo at household size 4; any other input answers
-`status: "awaiting_validated_data"` with empty or null content, so nothing is extrapolated. The
+example is Gasabo's for household size 4; every other district and size is modelled from it
+(BR-28 by the district's food line, BR-24 by household size) and says so in `valueBasis`. The
+total is the sum of the items (owner decision 2026-10-28; the PDF prints 6,250 for 4,750). The
 harvest calendar is sourced from NISR and tested in `test_harvest_calendar.py`.
 """
 
@@ -15,7 +16,6 @@ from fastapi.testclient import TestClient
 
 from tests.helpers import (
     EXAMPLE_META,
-    NO_EXAMPLE_META,
     NOT_INTEGER_QUERY_VALUES,
     assert_number,
     assert_problem,
@@ -68,65 +68,46 @@ def test_shopping_checklist_pdf_example(db_client: TestClient) -> None:
             {"name": "Local Red Kidney Beans", "quantity": "2 kg", "estPrice": 1_700},
             {"name": "Fresh Amaranth Greens (Dodo)", "quantity": "3 bundles", "estPrice": 650},
         ],
-        "totalEstimatedBasket": 6_250,
+        "totalEstimatedBasket": 4_750,
         "unoptimizedBasket": 8_650,
-        "estimatedSavings": 2_400,
-        "assumptions": [
-            EXAMPLE_ONLY,
-            "illustrative_prices_not_market_observations",
-            "totals_are_the_pdf_figures_not_the_sum_of_the_listed_items",
-        ],
+        "estimatedSavings": 3_900,
+        "assumptions": BASE_ASSUMPTIONS,
         "meta": EXAMPLE_META,
     }
-    # The PDF's own arithmetic: savings = unoptimized − total. The listed items sum to 4,750, not
-    # 6,250, so the totals are served as given and an assumption says so.
+    # The PDF prints 6,250 and 2,400; the owner chose the items' sum (contract §11.5).
     assert data["unoptimizedBasket"] - data["totalEstimatedBasket"] == data["estimatedSavings"]
-    assert sum(item["estPrice"] for item in data["items"]) == 4_750
+    assert sum(item["estPrice"] for item in data["items"]) == data["totalEstimatedBasket"]
 
 
-@pytest.mark.parametrize(
-    "query", ["district=musanze&household_size=4", "district=huye&household_size=5"]
-)
-def test_shopping_checklist_without_a_pdf_example_is_awaiting(
-    db_client: TestClient, query: str
-) -> None:
-    response = db_client.get(CHECKLIST + "?" + query)
-    data = raw_json(response)
-    assert data == {
-        "status": "awaiting_validated_data",
-        "valueBasis": None,
-        "district": query.split("&")[0].removeprefix("district="),
-        "items": [],
-        "totalEstimatedBasket": None,
-        "unoptimizedBasket": None,
-        "estimatedSavings": None,
-        "assumptions": [EXAMPLE_ONLY, "no_content_is_invented"],
-        "meta": NO_EXAMPLE_META,
-    }
-    assert '"totalEstimatedBasket":null' in response.text
-
-
-MODELLED_ASSUMPTIONS: Final = [
+BASE_ASSUMPTIONS: Final = [
     EXAMPLE_ONLY,
     "illustrative_prices_not_market_observations",
+    "total_is_the_sum_of_the_listed_items_not_the_pdf_printed_6250",
+    "estimated_savings_is_the_unoptimized_basket_minus_the_total",
+]
+MODELLED_DISTRICT: Final = [
+    "modelled_br_28_prices_scaled_from_gasabo_by_the_district_food_line_not_observed",
+    "quantities_are_gasabo_s_for_the_same_household_size",
+]
+UNIFORM: Final = "benchmark_is_one_illustrative_basket_for_every_district"
+MODELLED_SIZE: Final = [
     "modelled_br_24_square_root_scaling_from_household_size_4_not_observed",
-    "prices_and_totals_rounded_half_up_to_whole_rwf_quantities_to_0_1_unit",
+    "prices_rounded_half_up_to_whole_rwf_quantities_to_0_1_unit",
     "item_prices_scaled_from_the_pdf_price_not_recomputed_from_rounded_quantities",
-    "estimated_savings_is_the_scaled_unoptimized_basket_minus_the_scaled_total",
-    "totals_are_the_scaled_pdf_figures_not_the_sum_of_the_listed_items",
 ]
 
 
 # BR-24 by hand: size 1 is × √(1/4) = 0.5 and size 9 is × √(9/4) = 1.5, both exact; size 5 is
 # × √1.25 ≈ 1.118034, so 3 kg → 3.354 → 3.4 kg and 2,400 → 2,683.28 → 2,683 (half up).
+# Totals are (Σ items, scaled 8,650, the difference).
 @pytest.mark.parametrize(
     ("size", "items", "totals"),
     [
-        (1, [("1.5 kg", 1_200), ("1 kg", 850), ("1.5 bundles", 325)], (3_125, 4_325, 1_200)),
-        (9, [("4.5 kg", 3_600), ("3 kg", 2_550), ("4.5 bundles", 975)], (9_375, 12_975, 3_600)),
-        (5, [("3.4 kg", 2_683), ("2.2 kg", 1_901), ("3.4 bundles", 727)], (6_988, 9_671, 2_683)),
+        (1, [("1.5 kg", 1_200), ("1 kg", 850), ("1.5 bundles", 325)], (2_375, 4_325, 1_950)),
+        (9, [("4.5 kg", 3_600), ("3 kg", 2_550), ("4.5 bundles", 975)], (7_125, 12_975, 5_850)),
+        (5, [("3.4 kg", 2_683), ("2.2 kg", 1_901), ("3.4 bundles", 727)], (5_311, 9_671, 4_360)),
         (20, [("6.7 kg", 5_367), ("4.5 kg", 3_801), ("6.7 bundles", 1_453)],
-         (13_975, 19_342, 5_367)),
+         (10_621, 19_342, 8_721)),
     ],
 )  # fmt: skip
 def test_shopping_checklist_other_gasabo_sizes_are_modelled(
@@ -142,23 +123,61 @@ def test_shopping_checklist_other_gasabo_sizes_are_modelled(
     assert (
         data["totalEstimatedBasket"], data["unoptimizedBasket"], data["estimatedSavings"]
     ) == totals  # fmt: skip
-    assert data["assumptions"] == MODELLED_ASSUMPTIONS
+    assert data["assumptions"] == [*BASE_ASSUMPTIONS, *MODELLED_SIZE]
     assert data["meta"] == EXAMPLE_META
-    # The unexplained 1,500 gap in the PDF example is scaled too, never filled with an item.
-    assert sum(item["estPrice"] for item in data["items"]) < data["totalEstimatedBasket"]
 
 
-def test_shopping_checklist_only_gasabo_has_the_example(db_client: TestClient) -> None:
+# BR-28 by hand, × 50,000 ÷ 65,000 (the PDF's Musanze and Gasabo food lines): 2,400 → 1,846.15,
+# 1,700 → 1,307.69, 650 → 500, 8,650 → 6,653.85; then BR-24 for size 9 (× 1.5).
+@pytest.mark.parametrize(
+    ("size", "items", "totals"),
+    [
+        (4, [("3 kg", 1_846), ("2 kg", 1_308), ("3 bundles", 500)], (3_654, 6_654, 3_000)),
+        (9, [("4.5 kg", 2_769), ("3 kg", 1_962), ("4.5 bundles", 750)], (5_481, 9_981, 4_500)),
+    ],
+)  # fmt: skip
+def test_shopping_checklist_musanze_is_modelled_by_its_food_line(
+    db_client: TestClient, size: int, items: list[tuple[str, int]], totals: tuple[int, int, int]
+) -> None:
+    data = raw_json(db_client.get(CHECKLIST + f"?district=musanze&household_size={size}"))
+    assert data["status"] == "available" and data["valueBasis"] == "modelled_from_pdf_example"
+    assert data["district"] == "musanze"
+    assert [(item["quantity"], item["estPrice"]) for item in data["items"]] == items
+    assert (
+        data["totalEstimatedBasket"], data["unoptimizedBasket"], data["estimatedSavings"]
+    ) == totals  # fmt: skip
+    assert data["assumptions"] == [
+        *BASE_ASSUMPTIONS, *MODELLED_DISTRICT, *([] if size == 4 else MODELLED_SIZE),
+    ]  # fmt: skip
+    assert data["meta"] == EXAMPLE_META
+
+
+def test_shopping_checklist_benchmark_district_equals_gasabo(db_client: TestClient) -> None:
+    """A benchmark district's food line is Gasabo's, so BR-28 leaves the prices unchanged."""
+    huye = raw_json(db_client.get(CHECKLIST + "?district=huye&household_size=5"))
+    gasabo = raw_json(db_client.get(CHECKLIST + "?district=gasabo&household_size=5"))
+    fields = ("items", "totalEstimatedBasket", "unoptimizedBasket", "estimatedSavings")
+    assert {k: huye[k] for k in fields} == {k: gasabo[k] for k in fields}
+    assert huye["valueBasis"] == "modelled_from_pdf_example" and huye["district"] == "huye"
+    assert huye["assumptions"] == [
+        *BASE_ASSUMPTIONS, *MODELLED_DISTRICT, UNIFORM, *MODELLED_SIZE,
+    ]  # fmt: skip
+
+
+def test_shopping_checklist_is_available_for_every_district(db_client: TestClient) -> None:
     codes = [d["code"] for d in raw_json(db_client.get("/api/v1/districts"))["items"]]
-    statuses = {
-        code: raw_json(db_client.get(CHECKLIST + f"?district={code}&household_size=4"))["status"]
-        for code in codes
-    }
-    assert {code for code, status in statuses.items() if status == "available"} == {"gasabo"}
-    assert len(statuses) == 30
-    # Scaling never reaches a district the PDF does not cover.
-    data = raw_json(db_client.get(CHECKLIST + "?district=musanze&household_size=9"))
-    assert data["status"] == "awaiting_validated_data" and data["valueBasis"] is None
+    assert len(codes) == 30
+    for code in codes:
+        data = raw_json(db_client.get(CHECKLIST + f"?district={code}&household_size=4"))
+        assert data["status"] == "available", code
+        assert data["valueBasis"] == ("pdf_example" if code == "gasabo"
+                                      else "modelled_from_pdf_example")  # fmt: skip
+        assert len(data["items"]) == 3
+        items_total = sum(item["estPrice"] for item in data["items"])
+        assert items_total == data["totalEstimatedBasket"]
+        savings = data["unoptimizedBasket"] - data["totalEstimatedBasket"]
+        assert savings == data["estimatedSavings"]
+        assert data["meta"] == EXAMPLE_META
 
 
 def test_shopping_checklist_validates_its_query(db_client: TestClient) -> None:

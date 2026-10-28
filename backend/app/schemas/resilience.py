@@ -66,7 +66,9 @@ class ResilienceSimulationRequest(BodyModel):
     active_coping_levers: list[CopingLeverId]
 
 
-class ResilienceSimulationResponse(ApiModel):
+class ResilienceSimulationResult(ApiModel):
+    """The simulation's figures; the response adds `meta`, a saved plan embeds them (§11.11)."""
+
     raw_monthly_gap: int
     coping_relief_monthly: int
     lump_sum_support: int
@@ -83,4 +85,7 @@ class ResilienceSimulationResponse(ApiModel):
     savings_remaining: int
     savings_exhausted: bool
     assumptions: list[str]
+
+
+class ResilienceSimulationResponse(ResilienceSimulationResult):
     meta: ExampleMeta

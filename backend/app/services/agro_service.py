@@ -1,13 +1,16 @@
-"""Seasonal Agro Swaps page (contract v0.4 §11.2, §11.5 and §11.7; BR-14, BR-20, BR-25).
+"""Seasonal Agro Swaps page (contract §11.2, §11.5, §11.7; BR-14, BR-20, BR-24, BR-25, BR-28).
 
 Stateless and read-only: the seeded swap supplies the prices (invented in the design itself,
 "not market observations"); nothing from the request is stored. Purchasing-power equivalents,
 the balanced plate and the shopping checklist are MISSING_APIS.pdf example values, approved by
 the project owner on 2026-10-27 as illustrative data (`app/core/pdf_examples.py`); they are
-labelled with `meta.provenance` and are not official guidance or market prices. The Gasabo
-checklist for other household sizes is that example scaled by BR-24, as the owner approved, and
-says so in `valueBasis`. Where the PDF gives no example (any checklist outside Gasabo) the
-response says `awaiting_validated_data` with empty or null content; nothing is filled in.
+labelled with `meta.provenance` and are not official guidance or market prices.
+
+The shopping checklist is the PDF's Gasabo list for 4 people. Elsewhere its prices are scaled to
+the district by its food line (BR-28, owner-approved 2026-10-28) and, for other sizes, to the
+household by BR-24 (2026-10-27); `valueBasis` says when a response is modelled. The total is the
+sum of the items and the savings are the unoptimized basket minus that total (owner decision of
+2026-10-28; the PDF prints 6,250 for items that sum to 4,750).
 """
 
 from typing import Annotated
@@ -25,7 +28,7 @@ from app.calculations import (
 from app.core.constants import METHODOLOGY_VERSION
 from app.core.errors import SwapNotFoundError
 from app.core.pdf_examples import (
-    CHECKLISTS,
+    CHECKLIST,
     ENERGY_TIP,
     EXAMPLE_HOUSEHOLD_SIZE,
     PLATE_COMPONENTS,
@@ -34,6 +37,7 @@ from app.core.pdf_examples import (
     ChecklistItemExample,
 )
 from app.db.session import get_read_session
+from app.repositories.benchmark_repository import BenchmarkRepository
 from app.repositories.reference_data_repository import ReferenceDataRepository
 from app.schemas.agro import (
     AgroSavingsProjectionRequest,
@@ -46,7 +50,12 @@ from app.schemas.agro import (
     ShoppingChecklistResponse,
 )
 from app.schemas.common import ExampleMeta
-from app.services.benchmark_service import require_district
+from app.services.benchmark_service import BenchmarkService
+from app.services.district_advisor_service import (
+    UNIFORM_BASKET,
+    DistrictAdvisorService,
+    PriceModel,
+)
 
 PROJECTION_ASSUMPTIONS = (
     "illustrative_prices_not_market_observations",
@@ -61,19 +70,27 @@ PLATE_ASSUMPTIONS = (
     "energy_tip_figure_is_from_the_pdf_and_not_verified",
 )
 EXAMPLE_ONLY = "the_pdf_example_covers_only_gasabo_for_household_size_4"
-CHECKLIST_ASSUMPTIONS = (EXAMPLE_ONLY, "illustrative_prices_not_market_observations")
-MODELLED_CHECKLIST = (
+CHECKLIST_ASSUMPTIONS = (
+    EXAMPLE_ONLY,
+    "illustrative_prices_not_market_observations",
+    "total_is_the_sum_of_the_listed_items_not_the_pdf_printed_6250",
+    "estimated_savings_is_the_unoptimized_basket_minus_the_total",
+)
+MODELLED_DISTRICT = (
+    "modelled_br_28_prices_scaled_from_gasabo_by_the_district_food_line_not_observed",
+    "quantities_are_gasabo_s_for_the_same_household_size",
+)
+MODELLED_SIZE = (
     "modelled_br_24_square_root_scaling_from_household_size_4_not_observed",
-    "prices_and_totals_rounded_half_up_to_whole_rwf_quantities_to_0_1_unit",
+    "prices_rounded_half_up_to_whole_rwf_quantities_to_0_1_unit",
     "item_prices_scaled_from_the_pdf_price_not_recomputed_from_rounded_quantities",
-    "estimated_savings_is_the_scaled_unoptimized_basket_minus_the_scaled_total",
-    "totals_are_the_scaled_pdf_figures_not_the_sum_of_the_listed_items",
 )
 
 
 class AgroService:
-    def __init__(self, reference: ReferenceDataRepository) -> None:
+    def __init__(self, reference: ReferenceDataRepository, advisor: DistrictAdvisorService) -> None:
         self._reference = reference
+        self._advisor = advisor
 
     def project(self, request: AgroSavingsProjectionRequest) -> AgroSavingsProjectionResponse:
         swap = self._reference.get_swap(request.swap_id)
@@ -114,63 +131,48 @@ class AgroService:
         )
 
     def shopping_checklist(self, query: ShoppingChecklistQuery) -> ShoppingChecklistResponse:
-        district = require_district(self._reference, query.district)
-        example = CHECKLISTS.get((district.code, EXAMPLE_HOUSEHOLD_SIZE))
-        if example is None:
-            return ShoppingChecklistResponse(
-                status="awaiting_validated_data",
-                value_basis=None,
-                district=district.code,
-                items=[],
-                total_estimated_basket=None,
-                unoptimized_basket=None,
-                estimated_savings=None,
-                assumptions=[EXAMPLE_ONLY, "no_content_is_invented"],
-                meta=ExampleMeta(provenance=None),
-            )
+        model = self._advisor.price_model(query.district)
         size = query.household_size
-        if size == EXAMPLE_HOUSEHOLD_SIZE:
-            return ShoppingChecklistResponse(
-                status="available",
-                value_basis="pdf_example",
-                district=district.code,
-                items=[
-                    ChecklistItem(name=item.name, quantity=item.quantity, est_price=item.est_price)
-                    for item in example.items
-                ],
-                total_estimated_basket=example.total_estimated_basket,
-                unoptimized_basket=example.unoptimized_basket,
-                estimated_savings=example.estimated_savings,
-                assumptions=[
-                    *CHECKLIST_ASSUMPTIONS,
-                    "totals_are_the_pdf_figures_not_the_sum_of_the_listed_items",
-                ],
-                meta=ExampleMeta(provenance=PROVENANCE),
-            )
-        # Owner-approved BR-24 scaling of the size-4 example (contract §11.5): a model output.
-        total = square_root_scaled(example.total_estimated_basket, size, EXAMPLE_HOUSEHOLD_SIZE)
-        unoptimized = square_root_scaled(example.unoptimized_basket, size, EXAMPLE_HOUSEHOLD_SIZE)
+        items = [_checklist_item(item, model, size) for item in CHECKLIST.items]
+        total = sum(item.est_price for item in items)
+        unoptimized = square_root_scaled(
+            model.price(CHECKLIST.unoptimized_basket), size, EXAMPLE_HOUSEHOLD_SIZE
+        )
+        assumptions = list(CHECKLIST_ASSUMPTIONS)
+        if not model.is_reference:
+            assumptions.extend(MODELLED_DISTRICT)
+            if not model.basket.from_example:
+                assumptions.append(UNIFORM_BASKET)
+        if size != EXAMPLE_HOUSEHOLD_SIZE:
+            assumptions.extend(MODELLED_SIZE)
+        exact = model.is_reference and size == EXAMPLE_HOUSEHOLD_SIZE
         return ShoppingChecklistResponse(
             status="available",
-            value_basis="modelled_from_pdf_example",
-            district=district.code,
-            items=[_scaled_item(item, size) for item in example.items],
+            value_basis="pdf_example" if exact else "modelled_from_pdf_example",
+            district=model.basket.code,
+            items=items,
             total_estimated_basket=total,
             unoptimized_basket=unoptimized,
             estimated_savings=unoptimized - total,
-            assumptions=[*CHECKLIST_ASSUMPTIONS, *MODELLED_CHECKLIST],
+            assumptions=assumptions,
             meta=ExampleMeta(provenance=PROVENANCE),
         )
 
 
-def _scaled_item(item: ChecklistItemExample, household_size: int) -> ChecklistItem:
+def _checklist_item(
+    item: ChecklistItemExample, model: PriceModel, household_size: int
+) -> ChecklistItem:
+    """The PDF item in the district (BR-28) for the household size (BR-24)."""
+    price = square_root_scaled(model.price(item.est_price), household_size, EXAMPLE_HOUSEHOLD_SIZE)
+    if household_size == EXAMPLE_HOUSEHOLD_SIZE:
+        return ChecklistItem(name=item.name, quantity=item.quantity, est_price=price)
     amount = square_root_scaled_quantity(item.amount, household_size, EXAMPLE_HOUSEHOLD_SIZE)
     return ChecklistItem(
-        name=item.name,
-        quantity=f"{amount.normalize():f} {item.unit}",
-        est_price=square_root_scaled(item.est_price, household_size, EXAMPLE_HOUSEHOLD_SIZE),
+        name=item.name, quantity=f"{amount.normalize():f} {item.unit}", est_price=price
     )
 
 
 def get_agro_service(session: Annotated[Session, Depends(get_read_session)]) -> AgroService:
-    return AgroService(ReferenceDataRepository(session, METHODOLOGY_VERSION))
+    reference = ReferenceDataRepository(session, METHODOLOGY_VERSION)
+    benchmarks = BenchmarkService(reference, BenchmarkRepository(session, METHODOLOGY_VERSION))
+    return AgroService(reference, DistrictAdvisorService(reference, benchmarks))

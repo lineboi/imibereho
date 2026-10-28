@@ -27,7 +27,8 @@ _DESCRIPTIONS: Final = {
     400: "Malformed JSON (`malformed-request`) or an unknown query parameter (`unknown-parameter`)",
     404: (
         "Unknown district (`district-not-found`), no benchmark (`benchmark-not-available`) "
-        "or unknown swap (`swap-not-found`) or transaction (`transaction-not-found`)"
+        "or unknown swap (`swap-not-found`) or transaction (`transaction-not-found`), or no "
+        "saved resilience plan (`resilience-plan-not-found`)"
     ),
     401: (
         "Unknown identifier or wrong password (`invalid-credentials`), or a missing or invalid "

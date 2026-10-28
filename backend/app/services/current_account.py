@@ -1,6 +1,6 @@
 """The current household account, for protected routes (contract §11.8).
 
-Used by `GET` and `PATCH /user/profile` (§11.9); the tracker endpoints stay unserved (§11.4). A
+Used by `/user/profile` (§11.9), `/tracker/*` (§11.10) and `/user/resilience-plan` (§11.11). A
 protected route declares `account: CurrentAccountDep` and receives the account of a valid bearer
 token, or the request ends in 401 `not-authenticated` with `WWW-Authenticate: Bearer`.
 

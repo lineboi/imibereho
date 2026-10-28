@@ -1,4 +1,4 @@
-"""MISSING_APIS.pdf example values served as illustrative data (contract v0.4 §11.7) and BR-25.
+"""MISSING_APIS.pdf example values served as illustrative data (contract v0.4 §11.7), BR-25, BR-28.
 
 The values are the PDF's examples, copied exactly; these tests pin the arithmetic that ties them
 together, so an edit to one value cannot silently break the examples the frontend relies on.
@@ -9,15 +9,20 @@ from typing import get_args
 
 import pytest
 
-from app.calculations import purchasing_power_count, square_root_scaled_quantity
+from app.calculations import (
+    district_price_scaled,
+    purchasing_power_count,
+    square_root_scaled_quantity,
+)
 from app.core.pdf_examples import (
-    CHECKLISTS,
+    CHECKLIST,
     DISTRICT_BASKETS,
     EXAMPLE_HOUSEHOLD_SIZE,
     EXAMPLE_MONTHLY_SAVINGS,
     PLATE_COMPONENTS,
     PROVENANCE,
     PURCHASING_POWER,
+    REFERENCE_DISTRICT,
     STAPLE_PRICES,
     Provenance,
 )
@@ -43,7 +48,8 @@ def test_example_baskets_match_the_pdf_totals() -> None:
 
 
 def test_staple_prices_only_where_the_pdf_gives_them() -> None:
-    assert set(STAPLE_PRICES) == {"gasabo"} <= set(DISTRICT_BASKETS)
+    assert set(STAPLE_PRICES) == {REFERENCE_DISTRICT} == {"gasabo"}
+    assert REFERENCE_DISTRICT in DISTRICT_BASKETS  # BR-28 needs its food line
 
 
 def test_unit_costs_reproduce_the_pdf_example() -> None:
@@ -61,13 +67,39 @@ def test_plate_proportions_sum_to_100() -> None:
     assert [part.proportion_pct for part in PLATE_COMPONENTS] == [50, 25, 25]
 
 
-def test_checklist_example_is_internally_consistent_except_its_item_sum() -> None:
-    (key, example), *others = CHECKLISTS.items()
-    assert key == ("gasabo", EXAMPLE_HOUSEHOLD_SIZE) and not others
-    assert example.unoptimized_basket - example.total_estimated_basket == example.estimated_savings
-    # The PDF's three items sum to 4,750, not the 6,250 total: served as given (§11.7).
-    assert sum(item.est_price for item in example.items) == 4_750
-    assert [item.quantity for item in example.items] == ["3 kg", "2 kg", "3 bundles"]
+def test_checklist_example_and_its_printed_totals() -> None:
+    # The PDF prints 6,250 and 2,400 (= 8,650 − 6,250), but its three items sum to 4,750. The
+    # API serves the sum (owner decision, 2026-10-28), so its savings are 8,650 − 4,750 = 3,900.
+    assert CHECKLIST.unoptimized_basket - CHECKLIST.printed_total == CHECKLIST.printed_savings
+    assert (CHECKLIST.printed_total, CHECKLIST.printed_savings) == (6_250, 2_400)
+    assert sum(item.est_price for item in CHECKLIST.items) == 4_750
+    assert [item.quantity for item in CHECKLIST.items] == ["3 kg", "2 kg", "3 bundles"]
+
+
+@pytest.mark.parametrize(
+    ("price", "food", "expected"),
+    [
+        (750, 65_000, 750),  # Gasabo's own food line: unchanged
+        (750, 50_000, 577),  # Musanze: 576.92
+        (800, 50_000, 615),  # 615.38
+        (850, 50_000, 654),  # 653.85
+        (2_400, 50_000, 1_846),  # 1,846.15
+        (13, 32_500, 7),  # 6.5 rounds half up
+        (0, 50_000, 0),
+        (750, 0, 0),
+    ],
+)
+def test_br_28_district_price_scaling(price: int, food: int, expected: int) -> None:
+    assert district_price_scaled(price, food, 65_000) == expected
+
+
+def test_br_28_rejects_bad_inputs() -> None:
+    with pytest.raises(ValueError, match="price"):
+        district_price_scaled(-1, 50_000, 65_000)
+    with pytest.raises(ValueError, match="district_food"):
+        district_price_scaled(750, -1, 65_000)
+    with pytest.raises(ValueError, match="reference_food"):
+        district_price_scaled(750, 50_000, 0)
 
 
 @pytest.mark.parametrize(

@@ -298,6 +298,19 @@ def square_root_scaled_quantity(quantity: int, household_size: int, base_size: i
     return _quantise(Decimal(quantity) * factor, ONE_DECIMAL)
 
 
+def district_price_scaled(price: int, district_food: int, reference_food: int) -> int:
+    """BR-28: price × district food line ÷ reference food line, whole RWF rounded half up.
+
+    A modelled district price: the reference district's price, scaled by how the district's
+    food basket compares with the reference district's. The reference district's own food line
+    returns the price unchanged. Integer arithmetic.
+    """
+    _require_non_negative(price=price, district_food=district_food)
+    if reference_food < 1:
+        raise ValueError("reference_food must be >= 1")
+    return (2 * price * district_food + reference_food) // (2 * reference_food)
+
+
 def purchasing_power_count(savings: int, unit_cost: int) -> int:
     """BR-25: how many whole units the monthly savings buy, ⌊savings ÷ unit cost⌋.
 
