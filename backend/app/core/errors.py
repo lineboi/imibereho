@@ -169,6 +169,28 @@ class AuthNotConfiguredError(ProblemError):
         super().__init__("Accounts are not available on this server.")
 
 
+class TransactionNotFoundError(ProblemError):
+    """No transaction with this id belongs to the caller (another account's id included)."""
+
+    slug = "transaction-not-found"
+    title = "Transaction not found"
+    status = 404
+
+    def __init__(self) -> None:
+        super().__init__("No transaction with this id exists in your tracker.")
+
+
+class IdempotencyKeyReusedError(ProblemError):
+    slug = "idempotency-key-reused"
+    title = "Idempotency key reused"
+    status = 409
+
+    def __init__(self) -> None:
+        super().__init__(
+            "This Idempotency-Key was already used for a different request. Use a new key."
+        )
+
+
 class RequestValidationProblem(ProblemError):
     """A 422 raised by a service, for rules that need reference data (validated before lookups)."""
 
@@ -199,9 +221,29 @@ _CODE_BY_TYPE: Final = {
     "string_too_long": "too_long",
     "extra_forbidden": "unknown_field",
     "required": "required",
-    # Raised only by the account schemas (contract §11.8), as PydanticCustomError types.
+    # Raised as PydanticCustomError types by the account (§11.8) and tracker (§11.10) schemas.
     "too_short": "too_short",
+    "too_long": "too_long",
     "invalid_format": "invalid_format",
+    "invalid_month": "invalid_format",
+    "invalid_date": "invalid_format",
+    "invalid_datetime": "invalid_format",
+    "invalid_cursor": "invalid_format",
+    "invalid_key": "invalid_format",
+    "control_characters": "invalid_format",
+    "category_mismatch": "unknown_value",
+}
+# A more precise message than the code's own, for error types that share a code.
+_MESSAGE_BY_TYPE: Final = {
+    "invalid_month": "Must be a month as YYYY-MM.",
+    "invalid_date": "Must be a date as YYYY-MM-DD.",
+    "invalid_datetime": (
+        "Must be an ISO 8601 date-time with a time zone, e.g. 2026-10-26T14:30:00Z."
+    ),
+    "invalid_cursor": "Must be the nextCursor of a previous page.",
+    "invalid_key": "Must be 1 to 64 printable ASCII characters.",
+    "control_characters": "Must not contain control characters.",
+    "category_mismatch": "This category does not belong to the transaction type.",
 }
 
 _MESSAGE_BY_CODE: Final = {
@@ -217,7 +259,8 @@ _MESSAGE_BY_CODE: Final = {
 
 def _field_path(loc: Sequence[int | str]) -> str:
     """Contract §1.3: the camelCase dotted path to the field, without the `body`/`query` prefix."""
-    parts = [str(part) for part in loc[1:]] if loc and loc[0] in {"body", "query", "path"} else []
+    sources = {"body", "query", "path", "header"}
+    parts = [str(part) for part in loc[1:]] if loc and loc[0] in sources else []
     return ".".join(parts) if parts else str(loc[0]) if loc else ""
 
 
@@ -246,6 +289,8 @@ def map_validation_error(error: Mapping[str, Any]) -> FieldError:
         code = "unknown_value"
     if code == "out_of_range":
         message = _out_of_range_message(error.get("ctx"))
+    elif code != "required" and error_type in _MESSAGE_BY_TYPE:
+        message = _MESSAGE_BY_TYPE[error_type]
     else:
         message = _MESSAGE_BY_CODE[code]
     return FieldError(field=_field_path(loc), code=code, message=message)

@@ -1,7 +1,8 @@
 """SQLAlchemy models. Importing this package registers every table on `Base.metadata`.
 
-The server stores approved synthetic reference data, official statistics, operational seed state
-and, since contract §11.8, household accounts (the only data a person sends that is stored).
+The server stores approved synthetic reference data, official statistics, operational seed state,
+household accounts (contract §11.8, §11.9) and their tracker transactions (§11.10): the data a
+person sends that is stored.
 """
 
 from app.models.benchmark import BudgetBenchmark
@@ -23,6 +24,7 @@ from app.models.reference_data import (
 )
 from app.models.seasonal_swap import SeasonalSwap, SeasonalTip
 from app.models.seed_state import SeedState
+from app.models.tracker_transaction import TrackerTransaction
 from app.models.vulnerability import DistrictVulnerability, VulnerabilityBand, VulnerabilityModel
 
 __all__ = [
@@ -44,6 +46,7 @@ __all__ = [
     "StatisticalSource",
     "SurveyEstimate",
     "SyntheticHousehold",
+    "TrackerTransaction",
     "VulnerabilityBand",
     "VulnerabilityModel",
 ]

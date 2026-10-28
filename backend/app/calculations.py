@@ -9,7 +9,7 @@ is computed by the frontend because expenses never leave the device (Q-02).
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Final
+from typing import Final, Literal
 
 ONE_DECIMAL: Final = Decimal("0.1")
 FOUR_DECIMALS: Final = Decimal("0.0001")
@@ -346,3 +346,50 @@ def resilience_score(raw_gap: int, active_levers: int, net_gap: int) -> Resilien
     return ResilienceScore(
         baseline, min(SCORE_MAX, baseline + SCORE_PER_LEVER * active_levers + bonus)
     )
+
+
+BudgetHealth = Literal["normal", "caution", "exceeded"]
+
+
+def budget_health(
+    spent: int, planned: int | None, elapsed_days: int, days_in_month: int
+) -> BudgetHealth | None:
+    """BR-26: the month's spending against the plan, by pace. `None` without a plan.
+
+    exceeded: spent > planned (the whole month's plan is used up);
+    caution:  spent > planned × elapsed ÷ days (ahead of an even pace), compared in integers;
+    normal:   otherwise. No thresholds beyond the plan itself.
+    """
+    _require_non_negative(spent=spent, elapsed_days=elapsed_days)
+    if days_in_month < 1:
+        raise ValueError("days_in_month must be at least 1")
+    if planned is None:
+        return None
+    _require_non_negative(planned=planned)
+    if spent > planned:
+        return "exceeded"
+    if spent * days_in_month > planned * elapsed_days:
+        return "caution"
+    return "normal"
+
+
+@dataclass(frozen=True, slots=True)
+class BurnRate:
+    average_daily: int
+    projected_month: int
+
+
+def burn_rate(spent: int, elapsed_days: int, days_in_month: int) -> BurnRate | None:
+    """BR-27: average daily spending so far and the month it projects to, whole RWF half up.
+
+    average = spent ÷ elapsed days; projected = spent × days in month ÷ elapsed days (computed
+    from `spent`, not from the rounded average). `None` before the month has started.
+    """
+    _require_non_negative(spent=spent, elapsed_days=elapsed_days)
+    if elapsed_days == 0:
+        return None
+    if days_in_month < elapsed_days:
+        raise ValueError("elapsed_days cannot exceed days_in_month")
+    average = int(_quantise(Decimal(spent) / elapsed_days, Decimal(1)))
+    projected = int(_quantise(Decimal(spent * days_in_month) / elapsed_days, Decimal(1)))
+    return BurnRate(average, projected)

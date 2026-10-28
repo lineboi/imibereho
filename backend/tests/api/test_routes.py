@@ -57,6 +57,15 @@ EXTENSION_ENDPOINTS: Final = frozenset(
         # Contract §11.9: the profile, with PATCH instead of the PDF's PUT (owner direction).
         ("GET", "/api/v1/user/profile"),
         ("PATCH", "/api/v1/user/profile"),
+        # Contract §11.10: the tracker, with PATCH instead of the PDF's PUT (owner direction),
+        # plus DELETE; burn-rate's shape is a contract extension (the PDF gives none).
+        ("GET", "/api/v1/tracker/overview"),
+        ("GET", "/api/v1/tracker/transactions"),
+        ("POST", "/api/v1/tracker/transactions"),
+        ("PATCH", "/api/v1/tracker/transactions/{id}"),
+        ("DELETE", "/api/v1/tracker/transactions/{id}"),
+        ("GET", "/api/v1/tracker/daily-trend"),
+        ("GET", "/api/v1/tracker/burn-rate"),
     }
 )
 # What this build ships. Optional endpoints not built: /methodology, /demo-household.
@@ -88,13 +97,7 @@ def test_routes_equal_the_implemented_endpoints(stub_app: FastAPI) -> None:
 PRIVACY_BLOCKED_ENDPOINTS: Final = frozenset(
     {
         ("PUT", "/api/v1/user/profile"),  # replaced by PATCH (contract §11.9)
-        ("GET", "/api/v1/tracker/overview"),
-        ("GET", "/api/v1/tracker/transactions"),
-        ("POST", "/api/v1/tracker/transactions"),
-        ("PUT", "/api/v1/tracker/transactions/{id}"),
-        ("DELETE", "/api/v1/tracker/transactions/{id}"),
-        ("GET", "/api/v1/tracker/daily-trend"),
-        ("GET", "/api/v1/tracker/burn-rate"),
+        ("PUT", "/api/v1/tracker/transactions/{id}"),  # replaced by PATCH (contract §11.10)
         ("POST", "/api/v1/user/resilience-plan"),
     }
 )
@@ -103,7 +106,11 @@ PRIVACY_BLOCKED_ENDPOINTS: Final = frozenset(
 def test_privacy_blocked_pdf_endpoints_are_not_served(stub_app: FastAPI) -> None:
     assert not PRIVACY_BLOCKED_ENDPOINTS & app_endpoints(stub_app)
     paths = {path for _, path in app_endpoints(stub_app)}
-    assert not {p for p in paths if p.startswith("/api/v1/tracker")}
+    assert {p for p in paths if p.startswith("/api/v1/tracker")} == {
+        "/api/v1/tracker/overview", "/api/v1/tracker/transactions",
+        "/api/v1/tracker/transactions/{id}", "/api/v1/tracker/daily-trend",
+        "/api/v1/tracker/burn-rate",
+    }  # fmt: skip
     assert {p for p in paths if p.startswith("/api/v1/user")} == {"/api/v1/user/profile"}
     assert {p for p in paths if p.startswith("/api/v1/auth")} == {
         "/api/v1/auth/register", "/api/v1/auth/login",
@@ -202,8 +209,8 @@ def test_cors_exposes_the_request_id_on_simple_requests(client: TestClient) -> N
     assert response.headers["access-control-expose-headers"] == "X-Request-ID"
 
 
-def test_only_the_profile_requires_authentication(stub_app: FastAPI) -> None:
-    """One bearer scheme, used by exactly GET and PATCH /user/profile (contract §11.9)."""
+def test_only_household_routes_require_authentication(stub_app: FastAPI) -> None:
+    """One bearer scheme, used by exactly the profile (§11.9) and tracker (§11.10) routes."""
     schema = stub_app.openapi()
     assert schema["components"]["securitySchemes"] == {
         "bearerToken": {"type": "http", "scheme": "bearer"}
@@ -214,4 +221,10 @@ def test_only_the_profile_requires_authentication(stub_app: FastAPI) -> None:
         for method, operation in operations.items()
         if operation.get("security")
     }
-    assert protected == {("GET", "/api/v1/user/profile"), ("PATCH", "/api/v1/user/profile")}
+    household = {
+        (method, path)
+        for method, path in IMPLEMENTED_ENDPOINTS
+        if path.startswith(("/api/v1/user/", "/api/v1/tracker/"))
+    }
+    assert len(household) == 9
+    assert protected == household
