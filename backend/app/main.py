@@ -89,6 +89,7 @@ def create_app(
     )
     head = head_revision()
     app.state.database = database
+    app.state.settings = settings
 
     def readiness() -> Readiness:
         return check_readiness(database, head, DATASETS)
@@ -100,7 +101,8 @@ def create_app(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type", REQUEST_ID_HEADER],
+        # Authorization carries the bearer token of contract §11.8 for protected routes.
+        allow_headers=["Content-Type", "Authorization", REQUEST_ID_HEADER],
         expose_headers=[REQUEST_ID_HEADER],
         allow_credentials=False,
     )

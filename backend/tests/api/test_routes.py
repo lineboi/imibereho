@@ -51,6 +51,9 @@ EXTENSION_ENDPOINTS: Final = frozenset(
         ("GET", "/api/v1/nutrition/indyo-yuzuye"),
         ("GET", "/api/v1/agro/harvest-calendar"),
         ("GET", "/api/v1/market/shopping-checklist"),
+        # Contract §11.8: citizen accounts (a Q-02 change for one table, 2026-10-28).
+        ("POST", "/api/v1/auth/register"),
+        ("POST", "/api/v1/auth/login"),
     }
 )
 # What this build ships. Optional endpoints not built: /methodology, /demo-household.
@@ -76,12 +79,11 @@ def test_routes_equal_the_implemented_endpoints(stub_app: FastAPI) -> None:
     assert app_endpoints(stub_app) == IMPLEMENTED_ENDPOINTS
 
 
-# MISSING_APIS.pdf endpoints that need accounts or server-side citizen data. They are blocked by
-# Q-04 (no login, no /auth/*) and Q-02 (no citizen data stored); see contract §11.4.
+# MISSING_APIS.pdf endpoints that need accounts or server-side citizen data, still blocked by
+# Q-02 (no citizen data stored beyond the account table); see contract §11.4. Register and
+# login are served since contract §11.8.
 PRIVACY_BLOCKED_ENDPOINTS: Final = frozenset(
     {
-        ("POST", "/api/v1/auth/register"),
-        ("POST", "/api/v1/auth/login"),
         ("GET", "/api/v1/user/profile"),
         ("PUT", "/api/v1/user/profile"),
         ("GET", "/api/v1/tracker/overview"),
@@ -99,9 +101,10 @@ PRIVACY_BLOCKED_ENDPOINTS: Final = frozenset(
 def test_privacy_blocked_pdf_endpoints_are_not_served(stub_app: FastAPI) -> None:
     assert not PRIVACY_BLOCKED_ENDPOINTS & app_endpoints(stub_app)
     paths = {path for _, path in app_endpoints(stub_app)}
-    assert not {
-        p for p in paths if p.startswith(("/api/v1/auth", "/api/v1/user", "/api/v1/tracker"))
-    }
+    assert not {p for p in paths if p.startswith(("/api/v1/user", "/api/v1/tracker"))}
+    assert {p for p in paths if p.startswith("/api/v1/auth")} == {
+        "/api/v1/auth/register", "/api/v1/auth/login",
+    }  # fmt: skip
 
 
 def test_every_shipped_route_is_in_the_contract_or_a_declared_extension() -> None:

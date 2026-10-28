@@ -9,10 +9,18 @@ from typing import Literal
 
 from pydantic import Field
 
-from app.schemas.common import ApiModel, Baseline, BodyModel, JsonDecimal, ListMeta, Meta, Money
+from app.schemas.common import (
+    ApiModel,
+    Baseline,
+    BodyModel,
+    ExampleListMeta,
+    ExampleMeta,
+    JsonDecimal,
+    Money,
+)
 from app.schemas.shock import DurationMonths, Percent
 
-ShockId = Literal["income_drop", "medical_emergency", "school_fees"]
+ShockId = Literal["income_drop", "medical_emergency", "school_fees", "harvest_disruption"]
 CopingLeverId = Literal["trim_non_essentials", "seasonal_agro_swaps", "ibimina_tontine"]
 
 
@@ -35,13 +43,15 @@ class CopingLeverItem(ApiModel):
 class ShockCatalog(ApiModel):
     items: list[ShockCatalogItem]
     coping_levers: list[CopingLeverItem]
-    meta: ListMeta
+    meta: ExampleListMeta
 
 
 class ResilienceShock(BodyModel):
     type: ShockId
     income_reduction_pct: Percent | None = Field(
-        default=None, description="Required for income_drop; not allowed for lump-sum shocks"
+        default=None,
+        description="Required for income shocks (income_drop, harvest_disruption); not allowed "
+        "for lump-sum shocks",
     )
     duration_months: DurationMonths
     amount: Money | None = Field(
@@ -63,7 +73,8 @@ class ResilienceSimulationResponse(ApiModel):
     net_monthly_gap: int
     total_effective_buffer: int
     runway_months: JsonDecimal | None = Field(
-        description="totalEffectiveBuffer ÷ netMonthlyGap, 1 dp; null when netMonthlyGap is 0"
+        description="totalEffectiveBuffer ÷ rawMonthlyGap, 1 dp (how long the buffer lasts if the "
+        "levers do not work); null when rawMonthlyGap is 0"
     )
     resilience_score: int
     score_change: int
@@ -72,4 +83,4 @@ class ResilienceSimulationResponse(ApiModel):
     savings_remaining: int
     savings_exhausted: bool
     assumptions: list[str]
-    meta: Meta
+    meta: ExampleMeta

@@ -1,7 +1,9 @@
 """Seasonal Agro Swaps page (contract v0.4 §11.2 and §11.5, MISSING_APIS.pdf pages 10-11).
 
-Field names follow the PDF. Additions: `meta`, `assumptions`, and a `purchasingPowerStatus`
-that says why `purchasingPowerEquivalents` is empty (no sourced prices exist in the project).
+Field names follow the PDF. Additions: `meta` (with `provenance` where MISSING_APIS.pdf example
+values are served, contract §11.7), `assumptions`, `status` on the content endpoints, and a
+`purchasingPowerStatus`. Each purchasing-power item sets only the PDF's count key for it
+(`coversWeeks`, `ridesCount` or `quantity`); the other two are `null`.
 """
 
 from typing import Annotated, Literal
@@ -10,7 +12,8 @@ from pydantic import Field, StrictInt
 
 from app.core.constants import HOUSEHOLD_SIZE_MAX, HOUSEHOLD_SIZE_MIN
 from app.schemas.benchmark import DistrictCodeParam
-from app.schemas.common import ApiModel, BodyModel, Meta, QueryInt, QueryModel
+from app.schemas.common import ApiModel, BodyModel, ExampleMeta, QueryInt, QueryModel
+from app.schemas.official_statistics import OfficialMeta, SourceOut
 
 MEALS_PER_WEEK_MAX = 21  # three meals a day
 DataStatus = Literal["available", "awaiting_validated_data"]
@@ -40,10 +43,10 @@ class AgroSavingsProjectionResponse(ApiModel):
     purchasing_power_equivalents: list[PurchasingPowerEquivalent]
     purchasing_power_status: DataStatus
     assumptions: list[str]
-    meta: Meta
+    meta: ExampleMeta
 
 
-# --- Content that needs a cited source (contract v0.4 §11.5): served as unavailable ---
+# --- Content (contract v0.4 §11.5 and §11.7) ---
 
 
 class PlateComponent(ApiModel):
@@ -59,17 +62,33 @@ class BalancedPlateResponse(ApiModel):
     plate_components: list[PlateComponent]
     energy_tip: str | None
     assumptions: list[str]
-    meta: Meta
+    meta: ExampleMeta
+
+
+SeasonId = Literal["A", "B", "C"]
+
+
+class SeasonOut(ApiModel):
+    season: SeasonId
+    name: str
+    months_range: str
 
 
 class HarvestCalendarResponse(ApiModel):
+    """Official NISR season calendar (SAS 2025), not illustrative: `meta.isIllustrative` false."""
+
     status: DataStatus
-    active_season: Literal["A", "B", "C"] | None
+    active_season: SeasonId | None = Field(description="The season of the current month (Kigali)")
     season_name: str | None
     months_range: str | None
-    harvest_highlights: list[str]
+    harvest_highlights: list[str] = Field(
+        description="The active season's three largest seasonal crops by 2025 production"
+    )
+    month: str = Field(description="The month the active season was taken from, YYYY-MM")
+    seasons: list[SeasonOut]
+    source: SourceOut | None
     assumptions: list[str]
-    meta: Meta
+    meta: OfficialMeta
 
 
 class ShoppingChecklistQuery(QueryModel):
@@ -83,12 +102,20 @@ class ChecklistItem(ApiModel):
     est_price: int
 
 
+ChecklistBasis = Literal["pdf_example", "modelled_from_pdf_example"]
+
+
 class ShoppingChecklistResponse(ApiModel):
     status: DataStatus
+    value_basis: ChecklistBasis | None = Field(
+        description="pdf_example: the MISSING_APIS.pdf figures as given (household size 4); "
+        "modelled_from_pdf_example: those figures scaled by BR-24 (√(householdSize ÷ 4)), a "
+        "model output, not a market observation; null when status is awaiting_validated_data"
+    )
     district: str
     items: list[ChecklistItem]
     total_estimated_basket: int | None
     unoptimized_basket: int | None
     estimated_savings: int | None
     assumptions: list[str]
-    meta: Meta
+    meta: ExampleMeta

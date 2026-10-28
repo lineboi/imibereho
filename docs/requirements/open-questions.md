@@ -9,8 +9,8 @@
 | ID | Resolution | Effect |
 |---|---|---|
 | Q-01 | **Resolved.** Hackathon demo on synthetic, clearly labelled data, built to production quality. | All data is seeded synthetic data under methodology version 0.1; no ingestion pipeline. Confirms assumption A-1. |
-| Q-02 | **Resolved: Option A.** No citizen data is stored on the server; no citizen accounts. | The backend is stateless for citizens. Confirms assumption A-2. Makes Q-13 not applicable. |
-| Q-04 | **Resolved.** No decision-maker login for the demo. | No `users` table or `/auth/*` endpoints. Confirms assumption A-3. |
+| Q-02 | **Resolved: Option A.** No citizen data is stored on the server; no citizen accounts. **Changed 2026-10-28 by implementation:** at the project owner's direction ("implement auth API endpoints" from `MISSING_APIS.pdf`), the backend added the `household_accounts` table and citizen register/login (contract §11.8), which is Option C ("accounts") for that table only. This records a technical change; it is **not** evidence that a privacy policy, consent flow or retention rule was approved. Profile, plan and expense data still stay on the device (Option A). | The backend is stateless for citizens except for that one table. Assumption A-2 holds except for accounts. **Q-13 is open again** and Q-34 records the conflicting design copy. |
+| Q-04 | **Resolved.** No decision-maker login for the demo. **Unchanged on 2026-10-28:** the citizen accounts of contract §11.8 are a Q-02 change; they neither resolve nor reopen this question about decision-makers. | No decision-maker accounts, roles or login. (The citizen `/auth/register` and `/auth/login` endpoints exist since 2026-10-28; see Q-02.) Confirms assumption A-3. |
 | Q-15 | **Resolved.** Python 3.12, FastAPI, PostgreSQL (**18 for local development; 16 for CI and deployment, provisional pending compatibility verification**, see `IMPLEMENTATION_PLAN.md` §2.11), SQLAlchemy 2.0 (typed), Alembic, Pydantic v2, pytest, ruff, mypy, uv. **Local development on a local PostgreSQL server managed through pgAdmin 4.** Render for hosting. **Docker and Docker Compose are deferred to a later containerisation phase.** (Corrected 2026-10-24: an earlier recording said "Docker Compose locally", which did not match the original decision.) | Fixes the stack for `docs/IMPLEMENTATION_PLAN.md`. |
 
 The proposed answers to the remaining questions are in `docs/IMPLEMENTATION_PLAN.md` §6. They are **proposed defaults, not decisions**, until the plan is approved.
@@ -20,7 +20,7 @@ The proposed answers to the remaining questions are in `docs/IMPLEMENTATION_PLAN
 | ID | Question | Why it matters | Evidence | Owner | Blocking |
 |---|---|---|---|---|---|
 | Q-01 | Are we building the **illustrative demo** shown in the design (synthetic data, concept methodology v0.1), or a production system with real data? | Decides whether the backend serves seeded demo data or needs data ingestion, provenance and validation pipelines. | Every screen: "ILLUSTRATIVE DEMO", "Concept blueprint", `2:7333` | Product | **Resolved**: demo on synthetic data, production quality |
-| Q-02 | Is citizen data (profile, plan, expenses) **stored on the server**? Options: A (device only), B (anonymous server storage), C (accounts). | The design says "This prototype does not collect or save your details". B or C contradicts that copy and needs a privacy policy. | `2:6407`, `2:6409`, `2:7417` | Product | **Resolved**: Option A (device only) |
+| Q-02 | Is citizen data (profile, plan, expenses) **stored on the server**? Options: A (device only), B (anonymous server storage), C (accounts). | The design says "This prototype does not collect or save your details". B or C contradicts that copy and needs a privacy policy. | `2:6407`, `2:6409`, `2:7417` | Product | **Resolved**: Option A (device only); **changed 2026-10-28** for citizen accounts only (Option C, `household_accounts`); see Resolutions, Q-13 and Q-34 |
 | Q-15 | What is the **backend stack** (language, framework, database, hosting)? | Nothing exists in the repo yet. | repo has only `frontend/` | BE | **Resolved**: see Resolutions above |
 | Q-16 | Should calculations run **server-side only**, **client-side only**, or both, sharing a spec and test vectors? | Affects the API surface (C3/C4 could need no backend calls at all). | D4 formulas `2:7337` | BE + FE | No |
 | Q-18 | For decision-maker KPIs, do we store the **3,000 synthetic households** and compute aggregates, or seed **precomputed aggregates** only? | Data model size and whether filters (household group, geography) can be computed dynamically. | `2:6793`, `2:6805`, `2:6864` | BE | No |
@@ -31,7 +31,8 @@ The proposed answers to the remaining questions are in `docs/IMPLEMENTATION_PLAN
 | ID | Question | Evidence | Owner | Blocking |
 |---|---|---|---|---|
 | Q-04 | Do **decision-makers sign in**? If so, how (email/password, SSO, invite-only)? Which organisations? Are there roles (viewer vs admin)? | Avatar `2:6765` with no menu; no login screen; "For NISR, MINALOC & NGOs" | Product | **Resolved**: no login for the demo |
-| Q-13 | If any citizen data is stored (Q-02 = B/C), what are the **retention, deletion and consent** rules? | `2:7415` "Test language, accessibility and consent"; `2:7417` | Product | Not applicable while Q-02 = Option A |
+| Q-13 | If any citizen data is stored (Q-02 = B/C), what are the **retention, deletion and consent** rules? | `2:7415` "Test language, accessibility and consent"; `2:7417` | Product | **Open** since 2026-10-28: `household_accounts` stores an identifier (phone number or email), a password hash and the profile (district, household size, monthly income, currency, language). Undecided: consent and privacy notice, retention period, account deletion, password reset, data-subject access. Needed before real households register |
+| Q-34 | The design copy **"This prototype does not collect or save your details"** and "No registration or phone number required" / "Continue without an account" now conflict with citizen registration, which stores a phone number or email and the profile. Change the copy, show registration only with a privacy notice, or keep registration out of the citizen UI? | `2:6401`, `2:6407`, `2:6409`; contract §11.8 | FE + Product (the copy is design and frontend content; the backend does not change it) | **Open**. Using every feature without an account (FR-01) still works: no served endpoint requires a token |
 | Q-24 | Is the decision-maker workspace **public** if it stays synthetic? | "A shared view for public planning" `2:6755` | Product | No |
 
 ## 3. Missing or incomplete screens
@@ -77,7 +78,7 @@ The proposed answers to the remaining questions are in `docs/IMPLEMENTATION_PLAN
 These are working assumptions. Change them if a question above is answered differently. A-1 to A-3 are now **confirmed** by the resolutions of Q-01, Q-02 and Q-04; A-4 to A-9 remain assumptions.
 
 1. **A-1** (confirmed by Q-01) The demo scope is the target for v1. All data is seeded synthetic data reproducing the design values exactly.
-2. **A-2** (confirmed by Q-02) Citizen data stays on the device (Option A). The backend is stateless for citizens.
+2. **A-2** (confirmed by Q-02) Citizen data stays on the device (Option A). The backend is stateless for citizens. **Exception since 2026-10-28:** citizen accounts in `household_accounts` (Q-02, contract §11.8).
 3. **A-3** (confirmed by Q-04) There is no decision-maker authentication in v1.
 4. **A-4** Money is integer RWF. There is no other currency.
 5. **A-5** The district list is the 30 districts shown in D2.

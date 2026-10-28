@@ -6,7 +6,9 @@ version, drives request validation and is never joined with other data.
 
 Provenance (MISSING_APIS.pdf, 26 October 2026, page 9):
 - Shocks: ids, titles and defaults exactly as in the `GET /shocks/catalog` example. The page
-  also names "harvest disruption" but gives no values, so it is not listed.
+  also names "harvest disruption" with no values. It is listed (owner approval, 2026-10-27) as
+  an income shock with no defaults: the caller supplies the share of income lost and the
+  duration. Treating a lost harvest as lost income is a stated modelling assumption.
 - Levers: ids from the `resilience-simulation` request example. Their amounts reproduce that
   page's response example (copingReliefMonthly 17,200; lumpSumSupport 25,000):
   - `seasonal_agro_swaps` 5,200 per month: the agro-savings projection (BR-20) of the seeded
@@ -47,6 +49,7 @@ SHOCKS: Final = (
     ShockDefinition("income_drop", "Monthly income falls", False, 20, 3, None),
     ShockDefinition("medical_emergency", "Unexpected medical cost", True, None, None, 45_000),
     ShockDefinition("school_fees", "School term fees", True, None, None, 60_000),
+    ShockDefinition("harvest_disruption", "Harvest disruption", False, None, None, None),
 )
 
 # The seeded swap and meals per week behind `seasonal_agro_swaps` (checked by a test).

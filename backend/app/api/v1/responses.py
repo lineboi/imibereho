@@ -29,8 +29,14 @@ _DESCRIPTIONS: Final = {
         "Unknown district (`district-not-found`), no benchmark (`benchmark-not-available`) "
         "or unknown swap (`swap-not-found`)"
     ),
+    401: (
+        "Unknown identifier or wrong password (`invalid-credentials`), or a missing or invalid "
+        "bearer token (`not-authenticated`)"
+    ),
+    409: "An account already uses this identifier (`identifier-taken`)",
     422: "Field-level validation failure (`validation`)",
     500: "Unexpected error (`internal`); quote X-Request-ID when reporting",
+    503: "Accounts are not configured on this server (`auth-not-configured`)",
 }
 
 

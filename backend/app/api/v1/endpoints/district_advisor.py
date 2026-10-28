@@ -24,7 +24,7 @@ Service = Annotated[DistrictAdvisorService, Depends(get_district_advisor_service
 
 @router.post(
     "/calculations/stress-test",
-    summary="Apply an illustrative price shock to the benchmark basket (BR-21, BR-22)",
+    summary="Apply an illustrative price shock to a district basket (BR-21, BR-22, BR-24)",
     responses=problem_responses(400, 404, 422),
 )
 def stress_test(
@@ -35,7 +35,7 @@ def stress_test(
 
 @router.get(
     "/calculations/district-comparison",
-    summary="Compare the illustrative benchmark baskets of two districts (BR-23)",
+    summary="Compare the illustrative baskets of two districts (BR-23, BR-24)",
     responses=problem_responses(400, 404, 422),
 )
 def district_comparison(
@@ -46,8 +46,8 @@ def district_comparison(
 
 @router.get(
     "/districts/{code}/basket-details",
-    summary="The basket drawer for a district: benchmark rent and transit lines; staple prices "
-    "and market hub are unavailable",
+    summary="The basket drawer for a district: rent and transit lines; staple prices and "
+    "market hub where the MISSING_APIS.pdf example gives them (Gasabo), else null",
     responses=problem_responses(400, 404),
 )
 def basket_details(

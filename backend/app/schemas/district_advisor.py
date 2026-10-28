@@ -2,10 +2,11 @@
 
 Field and query names follow the PDF, including its snake_case query parameters for
 `district-comparison`. Additions: `meta`, `assumptions`, `householdSize` where the basket size is
-implicit, and `unavailableFields` on the basket drawer.
+implicit, and `status` and `unavailableFields` on the basket drawer.
 
-Every amount comes from the one illustrative benchmark basket (the same for every district,
-household size 4; [PD] Q-32). Nothing here is observed district data.
+Every amount is illustrative: the MISSING_APIS.pdf example baskets for Gasabo and Musanze
+(owner-approved; `meta.provenance` says so) or the one benchmark basket shared by every other
+district ([PD] Q-32). Nothing here is observed district data.
 """
 
 from typing import Annotated, Literal
@@ -13,8 +14,16 @@ from typing import Annotated, Literal
 from pydantic import Field, StrictInt
 
 from app.core.constants import HOUSEHOLD_SIZE_MAX, HOUSEHOLD_SIZE_MIN
+from app.schemas.agro import DataStatus
 from app.schemas.benchmark import DistrictCodeParam
-from app.schemas.common import ApiModel, BodyModel, JsonDecimal, Meta, QueryInt, QueryModel
+from app.schemas.common import (
+    ApiModel,
+    BodyModel,
+    ExampleMeta,
+    JsonDecimal,
+    QueryInt,
+    QueryModel,
+)
 
 HouseholdSizeBody = Annotated[StrictInt, Field(ge=HOUSEHOLD_SIZE_MIN, le=HOUSEHOLD_SIZE_MAX)]
 HouseholdSizeQuery = Annotated[QueryInt, Field(ge=HOUSEHOLD_SIZE_MIN, le=HOUSEHOLD_SIZE_MAX)]
@@ -49,7 +58,7 @@ class StressTestResponse(ApiModel):
         "months of the baseline basket"
     )
     assumptions: list[str]
-    meta: Meta
+    meta: ExampleMeta
 
 
 # --- GET /calculations/district-comparison ---
@@ -82,7 +91,7 @@ class DistrictComparisonResponse(ApiModel):
         description="total B ÷ total A, 3 dp; null if A's total is 0"
     )
     assumptions: list[str]
-    meta: Meta
+    meta: ExampleMeta
 
 
 # --- GET /districts/{code}/basket-details ---
@@ -95,12 +104,16 @@ class StaplePriceIndex(ApiModel):
 
 
 class BasketDetailsResponse(ApiModel):
+    status: DataStatus = Field(
+        description="awaiting_validated_data when any field in unavailableFields has no approved "
+        "or sourced value (it is null, never 0); available when every field has a value"
+    )
     district_code: str
     household_size: int
-    reference_rent_index: int = Field(description="The illustrative housing benchmark line")
-    reference_transit_pass: int = Field(description="The illustrative transport benchmark line")
+    reference_rent_index: int = Field(description="The illustrative basket's housing line")
+    reference_transit_pass: int = Field(description="The illustrative basket's transport line")
     staple_price_index: StaplePriceIndex
     primary_market_hub: str | None
     unavailable_fields: list[str]
     assumptions: list[str]
-    meta: Meta
+    meta: ExampleMeta

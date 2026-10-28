@@ -1,6 +1,6 @@
 # Missing API implementation plan (audit of `MISSING_APIS.pdf`)
 
-> **Status:** revision 3 (2026-10-27): **implemented** under the project owner's authority to make the open engineering decisions (D3, D4, D5, D3b), as recorded in §0. The frontend teammate has not signed off contract v0.4 (contract §11). Revision 2's planning text below is kept as history.
+> **Status:** revision 9 (2026-10-28). Revision 3 implemented the scope; revision 4 recorded the follow-up on the nine incomplete endpoints; revision 5 records the project owner's approval of the PDF's example values as illustrative data (contract §11.7). **Of the nine, seven are complete (#12, #15, #18, #19, #20 outright; #14 and #16 with one documented deviation each) and two are partial (#13, #21)**, for the reasons in §0. The frontend teammate has not signed off contract v0.4 (contract §11). Revision 2's planning text below is kept as history.
 >
 > **Input:** `MISSING_APIS.pdf` at the repository root (untracked; 11 pages; "Missing Backend APIs Specification", dated 26 October 2026, target delivery 28 October 2026; SHA-256 `489ed788bb908a649f0cbaa91c3be97d3128319ed520c6b9c82b6e4ee0a1dd93`). The original request named `MISSING_API.pdf`; no file with that name exists.
 >
@@ -10,7 +10,7 @@
 > - **[R]** recommendation awaiting approval.
 > - **[U]** unverified: no source in the repository.
 
-## 0. Implementation status (revision 3)
+## 0. Implementation status (revision 5)
 
 **Decisions taken by the backend under the project owner's authority (2026-10-27).** The formulas are BR-17 to BR-23 in `backend-requirements.md` §2; the contract is §11.
 - **D3:**
@@ -31,17 +31,21 @@
   - `household-shock` unchanged.
 - **D3b:** scenarios `food_inflation_15` and `rent_surge_10`. `bufferImpactMonths` is BR-22, giving −0.8 where the PDF's −1.2 can't be derived.
 - **Catalogues:** versioned constants (`app/core/resilience_catalog.py`, `app/core/stress_scenarios.py`). No migration; the head stays `0008`.
+- **Revision 5 (owner approval, 2026-10-27):** the PDF's example values are served as illustrative data with `meta.provenance: "MISSING_APIS.pdf example, owner-approved"` (`app/core/pdf_examples.py`, contract §11.7). They supersede, for those values only, the D3/D4 items above that left them out (Musanze basket, staples, purchasing power, plate, checklist, harvest disruption). Score and buffer impact keep BR-19 and BR-22, with the evidence in contract §11.1 and §11.3.
 
 | # | Endpoint | Outcome | Evidence (tests) |
 |---|---|---|---|
-| 15 | `GET /shocks/catalog` | Implemented | `tests/api/test_resilience.py`, `tests/unit/test_services/test_resilience.py` |
-| 16 | `POST /calculations/resilience-simulation` | Implemented | same; plus `tests/security/test_privacy.py::test_calculation_requests_write_nothing` |
-| 18 | `POST /calculations/agro-savings-projection` | Implemented (equivalents awaiting prices) | `tests/api/test_agro_projection.py`, BR-20 tests in `test_resilience.py` |
-| 14 | `POST /calculations/stress-test` | Implemented | `tests/api/test_district_advisor.py`, `tests/unit/test_services/test_district_advisor.py` |
-| 12 | `GET /calculations/district-comparison` | Implemented on the illustrative uniform benchmark | same |
-| 13 | `GET /districts/{code}/basket-details` | Partly: rent and transit lines; staple prices and hub `null` | same |
-| 19–21 | `nutrition/indyo-yuzuye`, `agro/harvest-calendar`, `market/shopping-checklist` | Route served; content `awaiting_validated_data` | `tests/api/test_agro_content.py` |
-| 1–11, 17 | auth, profile, tracker, resilience plan | **Blocked by Q-02/Q-04**; not served | `tests/api/test_routes.py::test_privacy_blocked_pdf_endpoints_are_not_served` |
+| 15 | `GET /shocks/catalog` | **Complete** (illustrative): the PDF's three shocks plus `harvest_disruption` with `null` defaults | `tests/api/test_resilience.py`, `tests/unit/test_services/test_resilience.py` |
+| 16 | `POST /calculations/resilience-simulation` | **Complete, one documented deviation**: the PDF's figures exactly except the score (BR-19: 95 / +28 integer vs 88 / "+26", no stated formula) | same; plus `tests/security/test_privacy.py::test_calculation_requests_write_nothing` |
+| 18 | `POST /calculations/agro-savings-projection` | **Complete** (illustrative): the PDF example exactly, including the equivalents (BR-25) | `tests/api/test_agro_projection.py`, BR-20 tests in `test_resilience.py` |
+| 14 | `POST /calculations/stress-test` | **Complete, one documented deviation**: totals as in the PDF; `bufferImpactMonths` BR-22 −0.8 vs −1.2 (no stated formula); any household size (BR-24) | `tests/api/test_district_advisor.py`, `tests/unit/test_services/test_district_advisor.py` |
+| 12 | `GET /calculations/district-comparison` | **Complete** (illustrative): the PDF example exactly (Gasabo vs Musanze); other districts use the shared benchmark | same |
+| 13 | `GET /districts/{code}/basket-details` | Partial: the PDF example exactly for Gasabo (`status: available`); the other 29 districts `awaiting_validated_data` with staple prices and hub `null` (open decision 1, contract §11.7; sources checked in `district-price-evidence.md`) | same |
+| 20 | `GET /agro/harvest-calendar` | **Complete**: official NISR SAS 2025 calendar and production (source `sas-2025`); Kinyarwanda season name omitted (sources disagree) | `tests/api/test_harvest_calendar.py` |
+| 19 | `nutrition/indyo-yuzuye` | **Complete** (illustrative): the PDF example, not presented as official guidance | `tests/api/test_agro_content.py` |
+| 21 | `market/shopping-checklist` | Partial: the PDF example for Gasabo at size 4 (totals served as given; items sum to 4,750) and BR-24-modelled at sizes 1–20 (`valueBasis`); other districts `awaiting_validated_data` (open decisions 2 and 4, contract §11.7; evidence in `district-price-evidence.md`) | same; `tests/unit/test_services/test_pdf_examples.py` |
+| 1–2 | `POST /auth/register`, `POST /auth/login` | **Complete** (revision 8, owner direction 2026-10-28): the PDF's fields exactly; contract v0.5 §11.8 | `tests/api/test_auth.py`, `tests/unit/test_security.py`, `tests/security/test_privacy.py` |
+| 3–11, 17 | profile, tracker, resilience plan | **Blocked by Q-02**; not served | `tests/api/test_routes.py::test_privacy_blocked_pdf_endpoints_are_not_served` |
 
 The route registry, privacy, layering, migration and seed checks are in the final report of this session. Contract §11.6 holds the full reconciliation.
 
@@ -74,8 +78,8 @@ The route registry, privacy, layering, migration and seed checks are in the fina
 
 | # | Method and route | PDF priority | Spec | Status | Related code that exists [V] | Gaps and contract differences | Blocked by | Scope |
 |---|---|---|---|---|---|---|---|---|
-| 1 | `POST /api/v1/auth/register` | HIGH | yes | BLOCKED_BY_DECISION | none (no users table, no auth dependency, no hashing library in `backend/pyproject.toml`) | Stores a phone number and password hash. Needs JWT signing, secrets, rate limiting and consent | D1 (Q-02/Q-04), privacy tests | Deferred |
-| 2 | `POST /api/v1/auth/login` | HIGH | yes | BLOCKED_BY_DECISION | none | As #1 | D1 | Deferred |
+| 1 | `POST /api/v1/auth/register` | HIGH | yes | **IMPLEMENTED** (revision 8, 2026-10-28) | `household_accounts` (migration 0009), Argon2id, HS256 tokens | Stores a phone number or email, a password hash and the profile; a Q-02 change for that table (Option C), Q-04 unchanged | contract §11.8 | Done |
+| 2 | `POST /api/v1/auth/login` | HIGH | yes | **IMPLEMENTED** (revision 8, 2026-10-28) | as #1 | One 401 for unknown identifier and wrong password | contract §11.8 | Done |
 | 3 | `GET /api/v1/user/profile` | HIGH | yes | BLOCKED_BY_DECISION | `ReferenceHousehold` (Gasabo, 4, 180,000 / 150,000 / 60,000; `backend/app/data/reference.py`); optional contract endpoint `GET /api/v1/demo-household` (§6, not built) | The account-free equivalent is `demo-household` (D6) | D1 | Deferred |
 | 4 | `PUT /api/v1/user/profile` | MEDIUM | **no** | BLOCKED_BY_DECISION | none | No specification | D1, spec | Deferred |
 | 5 | `GET /api/v1/tracker/overview` | CRITICAL | yes | BLOCKED_BY_DECISION | `monthly_balance` (BR-01) in `backend/app/calculations.py` | `totalSpentSoFar` needs stored transactions. `dailyBudgetHealth` has no definition [U]. Q-08 is open | D1, Q-08 | Deferred (device-only data) |
@@ -163,7 +167,7 @@ The route registry, privacy, layering, migration and seed checks are in the fina
 | D5.5 | Keep `household-shock` unchanged alongside #16 (recommended), or deprecate it? | existing route |
 
 ### Deferred decisions (not needed for the deadline scope)
-- **D1:** reopen Q-02/Q-04. Owner: the product owner. Blocks #1–#11 and #17.
+- **D1:** reopen Q-02/Q-04. Owner: the product owner. Blocks #1–#11 and #17. **Outcome (revisions 8–9, 2026-10-28):** #1–#2 built at the owner's direction as a Q-02 change for citizen accounts only; Q-04 (decision-maker login) was not involved and is unchanged. #3–#11 and #17 stay blocked.
 - **D2:** per-district data and household-size scaling (the frontend's `getHouseholdSizeFactor` has no source). Blocks #12, #13 and #21.
 - **D3b:** stress scenarios and the `bufferImpactMonths` formula, plus where savings and income come from. Blocks #14.
 - **D6:** whether to build the optional `GET /api/v1/demo-household`.
@@ -403,3 +407,9 @@ An endpoint is complete only when every box is ticked **with recorded evidence**
 | 1 | 2026-10-27 | First audit and plan. |
 | 2 | 2026-10-27 | Deadline-focused review. Q-02/Q-04 kept with no auth or persistence in scope. Scope fixed as Phase 1, Phase 2, then optional #14. Catalogue migration replaced by a versioned constants module, with a comparison (§6). The 5,196 vs 5,200 mismatch recorded as D4.1 without choosing a rounding rule. D3/D4/D5 broken into exact questions with the fields affected. Minimum v0.4 contract changes added (§7). Per-endpoint acceptance checklists with commands added (§9). Persistence order removed from scope. |
 | 3 | 2026-10-27 | Implemented under the project owner's authority: decisions recorded in §0, status per endpoint, contract v0.4 §11. |
+| 4 | 2026-10-27 | Owner-approved: BR-24 square-root household-size scaling (#12, #14), the PDF's runway (#16), integer `scoreChange`. #20 served from NISR SAS 2025. Using the PDF's example values as illustrative data was put to the owner twice and not approved, so #12, #13, #15, #18, #19 and #21 stay partial or awaiting data. |
+| 5 | 2026-10-27 | The project owner approved the PDF's example values as illustrative data (provenance "MISSING_APIS.pdf example, owner-approved"). Served for #12, #13, #15, #16, #18, #19 and #21 (contract §11.7); BR-25 added; score and buffer-impact deviations documented with evidence. Status: seven of the nine complete (two with one documented deviation), #13 and #21 partial. |
+| 6 | 2026-10-27 | Gap review of #13 and #21 against the PDF, contract and Q-32: `status` added to `basket-details` (`awaiting_validated_data` for the 29 districts without staple prices or hub); validation-order, case-sensitivity, all-30-district and OpenAPI tests added; open decisions 1–4 recorded in contract §11.7. Both stay partial: no further approved or sourced data exists. |
+| 7 | 2026-10-27 | Source research for #13 and #21 (WFP market prices on HDX, NISR CPI September 2026, MINAGRI e-Soko), recorded with hashes and candidate values in `district-price-evidence.md`: no source covers all three staples or a primary market for any district, so nothing new is served. Owner-approved BR-24 scaling of the Gasabo checklist to sizes 1–20, labelled `valueBasis: modelled_from_pdf_example`. Both stay partial. |
+| 8 | 2026-10-28 | At the project owner's direction, #1 `POST /auth/register` and #2 `POST /auth/login` implemented exactly as the PDF shows them (contract v0.5 §11.8): `household_accounts` (migration 0009), Argon2id, HS256 tokens, `JWT_SECRET_KEY`. A Q-02 change for that table only (Option C); Q-04 unchanged. #3–11 and #17 stay unserved. |
+| 9 | 2026-10-28 | Security review fixes: ASCII-only identifiers (lookalikes rejected); a current-account dependency for future protected routes (401 `not-authenticated`), with CORS allowing `Authorization`; the decision records corrected (Q-02 changed for accounts; Q-04 unchanged; Q-13 open; Q-34 added for the design copy). No endpoint added. |

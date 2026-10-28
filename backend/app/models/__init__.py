@@ -1,9 +1,11 @@
 """SQLAlchemy models. Importing this package registers every table on `Base.metadata`.
 
-The server stores only approved synthetic reference data and operational seed state (Q-02).
+The server stores approved synthetic reference data, official statistics, operational seed state
+and, since contract §11.8, household accounts (the only data a person sends that is stored).
 """
 
 from app.models.benchmark import BudgetBenchmark
+from app.models.household_account import HouseholdAccount
 from app.models.household_profile import ReferenceHousehold, SyntheticHousehold
 from app.models.official_statistics import (
     FinancialAccessStrandDistrict,
@@ -30,6 +32,7 @@ __all__ = [
     "ExpenseCategory",
     "FinancialAccessStrandDistrict",
     "FinancialInclusionIndicator",
+    "HouseholdAccount",
     "HouseholdGroup",
     "MethodologyVersion",
     "MonthlySeriesPoint",

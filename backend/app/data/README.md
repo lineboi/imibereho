@@ -8,6 +8,9 @@
   insurance), extracted verbatim from NISR's workbook by `eicv7_workbook.py` (which uses the
   stdlib reader `xlsx_reader.py`). Re-check against the workbook with
   `uv run python -m app.data.eicv7_workbook <path to EICV7_Tables_MainIndicatorReport.xlsx>`.
+- `sas_2025.py`: NISR's Seasonal Agricultural Survey 2025 (season calendar, Table 0 crop
+  production by season) for `/api/v1/agro/harvest-calendar`. Only the source row is seeded; the
+  calendar and production figures are versioned constants with their provenance.
 
 Each official dataset owns only its own source's rows in the shared tables (`TableRows.partition`),
 so adding a source never deletes or re-hashes another one.
@@ -22,6 +25,7 @@ so adding a source never deletes or re-hashes another one.
 | `vulnerability.py` | `vulnerability` | Weights, bands and all 30 scores from the design (`2:7355`, `2:7061`, `2:6965`); Gasabo's components from `2:7097`. **[SYN]** the other 29 districts' components |
 | `finscope_2024.py` | `finscope_2024` | **Official published statistics**: FinScope Rwanda 2024 report, pp. 25, 27, 31, 69 (not illustrative) |
 | `eicv7_2023_24.py` | `eicv7_2023_24` | **Official published statistics**: NISR EICV7 Main Indicators Report 2023/24, Tables A9.23 (p. 107) and A3.7 (p. 91), from the NISR workbook (not illustrative) |
+| `sas_2025.py` | `sas_2025` | **Official published statistics**: NISR Seasonal Agricultural Survey 2025, annual tables (Table 0) and summary p. 2 (not illustrative) |
 | `synthetic_households.py` | `synthetic_households` | **[SYN]** 3,000 invented households; only the totals come from the design (`2:6793`, `2:6864`, `2:6805`) |
 
 `registry.py` defines datasets and the canonical SHA-256 content hash that the seed framework

@@ -15,8 +15,9 @@ from app.calculations import (
     spread_monthly,
 )
 from app.core.errors import FieldError, RequestValidationProblem
+from app.core.pdf_examples import PROVENANCE
 from app.core.resilience_catalog import COPING_LEVERS, LEVERS_BY_ID, SHOCKS, SHOCKS_BY_ID
-from app.schemas.common import ListMeta, Meta
+from app.schemas.common import ExampleListMeta, ExampleMeta
 from app.schemas.resilience import (
     CopingLeverItem,
     ResilienceSimulationRequest,
@@ -32,7 +33,9 @@ ASSUMPTIONS = (
     "lever_amounts_from_catalogue",
     "no_new_borrowing",
     "no_additional_shocks",
+    "resilience_score_is_br_19_the_pdf_example_figures_are_not_derivable",
 )
+HARVEST_AS_INCOME = "harvest_disruption_modelled_as_a_loss_of_income"
 
 
 def _validate(request: ResilienceSimulationRequest) -> None:
@@ -89,7 +92,11 @@ class ResilienceService:
             CopingLeverItem(id=lever.id, title=lever.title, kind=lever.kind, amount=lever.amount)
             for lever in COPING_LEVERS
         ]
-        return ShockCatalog(items=items, coping_levers=levers, meta=ListMeta(count=len(items)))
+        return ShockCatalog(
+            items=items,
+            coping_levers=levers,
+            meta=ExampleListMeta(count=len(items), provenance=PROVENANCE),
+        )
 
     def simulate(self, request: ResilienceSimulationRequest) -> ResilienceSimulationResponse:
         _validate(request)
@@ -122,15 +129,20 @@ class ResilienceService:
             lump_sum_support=support,
             net_monthly_gap=net_gap,
             total_effective_buffer=buffer,
-            runway_months=runway_months(buffer, net_gap),
+            # The PDF's runway (owner-approved 2026-10-27): how long the buffer covers the raw gap,
+            # i.e. if the levers did not work. Null only when there is no raw gap.
+            runway_months=runway_months(buffer, raw_gap),
             resilience_score=score.score,
             score_change=score.change,
             shock_cost_monthly=shock_cost,
             savings_used=drawdown.used,
             savings_remaining=drawdown.remaining,
             savings_exhausted=drawdown.exhausted,
-            assumptions=list(ASSUMPTIONS),
-            meta=Meta(),
+            assumptions=[
+                *ASSUMPTIONS,
+                *([HARVEST_AS_INCOME] if shock.type == "harvest_disruption" else []),
+            ],
+            meta=ExampleMeta(provenance=PROVENANCE),
         )
 
 

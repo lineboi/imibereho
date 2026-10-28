@@ -31,6 +31,8 @@ FINSCOPE_2024_SOURCE_ID: Final = "finscope-2024"
 EICV7_SOURCE_ID: Final = "eicv7-2023-2024"
 EICV7_POVERTY_INDICATOR: Final = "poverty_headcount_rate"  # Table A9.23
 EICV7_HEALTH_INSURANCE_INDICATOR: Final = "health_insurance_coverage"  # Table A3.7
+# Official published statistics: NISR's Seasonal Agricultural Survey 2025 (crop-season calendar).
+SAS_2025_SOURCE_ID: Final = "sas-2025"
 
 # Contract §5 / [PD] Q-14: geography offers `all` only. Label from the design (`2:6774`).
 GEOGRAPHY_ALL: Final = "all"

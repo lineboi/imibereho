@@ -37,16 +37,20 @@ Stack: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (typed), Alembic, Postgre
 | `GET /api/v1/dashboard/filters`, `GET /api/v1/dashboard/overview` | §5 | `geography=all` only ([PD] Q-14) |
 | `POST /api/v1/calculations/budget-comparison` | §6 (optional) | See open item below |
 | `GET /api/v1/nisr/sources`, `GET /api/v1/nisr/financial-inclusion/national`, `GET /api/v1/nisr/financial-inclusion/districts` | **v0.3** §10 (agreed 2026-10-27) | Official FinScope 2024 statistics with provenance; `isIllustrative: false`. See [`docs/api/nisr-financial-inclusion.md`](docs/api/nisr-financial-inclusion.md) |
-| `GET /api/v1/nutrition/indyo-yuzuye`, `GET /api/v1/agro/harvest-calendar`, `GET /api/v1/market/shopping-checklist` | **v0.4** §11.5 (frontend sign-off pending) | `status: "awaiting_validated_data"` with empty or null content: no cited source yet. The PDF's account and tracker endpoints are not served (Q-02/Q-04, §11.4) |
-| `POST /api/v1/calculations/stress-test`, `GET /api/v1/calculations/district-comparison`, `GET /api/v1/districts/{code}/basket-details` | **v0.4** §11.3 (frontend sign-off pending) | On the one illustrative benchmark basket (BR-21 to BR-23); staple prices and market hub unavailable (`null`) |
-| `POST /api/v1/calculations/agro-savings-projection` | **v0.4** §11.2 (frontend sign-off pending) | Monthly saving from the seeded illustrative swap (BR-20); 404 `swap-not-found` |
-| `GET /api/v1/shocks/catalog`, `POST /api/v1/calculations/resilience-simulation` | **v0.4** §11.1 (frontend sign-off pending) | Illustrative shock catalogue and coping-lever simulation (BR-17 to BR-19); stateless |
+| `GET /api/v1/agro/harvest-calendar` | **v0.4** §11.5 (frontend sign-off pending) | Official NISR SAS 2025 season calendar and main crops (`isIllustrative: false`; source `sas-2025`) |
+| `GET /api/v1/nutrition/indyo-yuzuye`, `GET /api/v1/market/shopping-checklist` | **v0.4** §11.5 (frontend sign-off pending) | The PDF's example content, owner-approved as illustrative (`meta.provenance`, §11.7); the checklist exists for Gasabo only (size 4 as given, other sizes modelled by BR-24, `valueBasis`), other districts give `status: "awaiting_validated_data"`. The PDF's account and tracker endpoints are not served (Q-02/Q-04, §11.4) |
+| `POST /api/v1/calculations/stress-test`, `GET /api/v1/calculations/district-comparison`, `GET /api/v1/districts/{code}/basket-details` | **v0.4** §11.3 (frontend sign-off pending) | Illustrative: the PDF's Gasabo and Musanze baskets, the shared benchmark elsewhere (BR-21 to BR-24); staple prices and market hub for Gasabo only, else `null` |
+| `POST /api/v1/calculations/agro-savings-projection` | **v0.4** §11.2 (frontend sign-off pending) | Monthly saving from the seeded illustrative swap (BR-20) and purchasing-power equivalents (BR-25, PDF example unit costs); 404 `swap-not-found` |
+| `GET /api/v1/shocks/catalog`, `POST /api/v1/calculations/resilience-simulation` | **v0.4** §11.1 (frontend sign-off pending) | Illustrative shock catalogue (the PDF's shocks plus `harvest_disruption`) and coping-lever simulation (BR-17 to BR-19); stateless |
+| `POST /api/v1/auth/register`, `POST /api/v1/auth/login` | **v0.5** §11.8 (frontend sign-off pending) | Household accounts as in the PDF: stores the identifier, an Argon2id password hash and the profile (`household_accounts`); returns an HS256 bearer token (86,400 s). A Q-02 change for that table (citizen accounts, 2026-10-28); Q-04 unchanged; Q-13 and Q-34 open |
 | `GET /api/v1/nisr/poverty`, `GET /api/v1/nisr/health-insurance` | **v0.3** §10 (agreed 2026-10-27) | Official NISR EICV7 2023/24 estimates (Tables A9.23, A3.7) with standard errors and 95% CIs; `isIllustrative: false`. Same guide |
 
 Not built: the optional `GET /api/v1/methodology` and `GET /api/v1/demo-household` (each has a
 frontend fallback, contract §6), rate limiting (optional O3), and per-district geography (O5, not
-planned). There is no authentication (Q-04) and no pagination (contract §1: lists hold ≤ 30
-items).
+planned). Accounts exist only for `POST /api/v1/auth/register` and `POST /api/v1/auth/login`
+(contract v0.5 §11.8; they need `JWT_SECRET_KEY`, else 503 `auth-not-configured`). The
+current-account dependency (`app/services/current_account.py`) is ready for protected routes,
+but no served endpoint requires a token yet. There is no pagination (contract §1: lists hold ≤ 30 items).
 
 Errors are RFC 9457 `application/problem+json` (contract §1.3). Every response carries
 `X-Request-ID` (a safe client-supplied value is echoed back) and `Content-Language: en`.
@@ -145,7 +149,9 @@ to `imibereho`, run `ALTER TABLE … OWNER TO imibereho` (or recreate the dev da
 - Downgrades are possible only on `imibereho_migrations`. Tests never touch `DATABASE_URL`.
 - Tables are created only by Alembic migrations. `create_all()` is never used.
 - Writing a migration: wrap every explicit constraint name in `op.f("...")`. Without it, Alembic applies the naming convention a second time to CHECK constraints (revision `0006` repairs the names 0001–0005 created). Keep identifiers at 63 characters or fewer; `tests/unit/test_migration_names.py` enforces both rules without a database.
-- API sessions are `READ ONLY` transactions. Only migrations and the seed framework write.
+- API sessions are `READ ONLY` transactions, except `POST /api/v1/auth/register` and
+  `/auth/login`, which use a writable session; register is the only request that writes (one
+  `household_accounts` row). Otherwise only migrations and the seed framework write.
 
 ## Tests and quality gates
 

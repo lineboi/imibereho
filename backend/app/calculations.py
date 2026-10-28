@@ -273,6 +273,41 @@ def district_variance(
     )
 
 
+def square_root_scaled(amount: int, household_size: int, base_size: int) -> int:
+    """BR-24: amount × √(household size ÷ base size), whole RWF rounded half up.
+
+    The square-root equivalence scale (OECD): costs grow with household size, but less than
+    proportionally. Scaling a base-size amount to its own size returns it unchanged.
+    """
+    _require_non_negative(amount=amount)
+    if household_size < 1 or base_size < 1:
+        raise ValueError("household sizes must be at least 1")
+    factor = (Decimal(household_size) / Decimal(base_size)).sqrt()
+    return int(_quantise(Decimal(amount) * factor, Decimal(1)))
+
+
+def square_root_scaled_quantity(quantity: int, household_size: int, base_size: int) -> Decimal:
+    """BR-24 for an item quantity: quantity × √(household size ÷ base size), to 0.1 half up.
+
+    The unit is kept (kg stays kg, bundles stay bundles); a modelled quantity, not a pack size.
+    """
+    _require_non_negative(quantity=quantity)
+    if household_size < 1 or base_size < 1:
+        raise ValueError("household sizes must be at least 1")
+    factor = (Decimal(household_size) / Decimal(base_size)).sqrt()
+    return _quantise(Decimal(quantity) * factor, ONE_DECIMAL)
+
+
+def purchasing_power_count(savings: int, unit_cost: int) -> int:
+    """BR-25: how many whole units the monthly savings buy, ⌊savings ÷ unit cost⌋.
+
+    A projection with no savings (zero or negative) buys nothing, so it gives 0.
+    """
+    if unit_cost < 1:
+        raise ValueError("unit_cost must be at least 1")
+    return max(0, savings) // unit_cost
+
+
 def spread_monthly(amount: int, months: int) -> int:
     """BR-17: a one-off cost spread evenly over `months`, whole RWF rounded half up."""
     _require_non_negative(amount=amount)

@@ -4,6 +4,7 @@
 > Evidence tags: **[E]** explicit in design · **[I]** inferred · **[U]** unknown (see `Q-xx` in [open-questions.md](../requirements/open-questions.md)).
 > No backend code or database exists in the repo yet (it holds only the Vite + React + TS template in `frontend/`).
 > **Resolved 2026-10-24:** Q-01 (demo on synthetic data, production quality), Q-02 (Option A), Q-04 (no decision-maker login), Q-15 (Python 3.12 / FastAPI / PostgreSQL: 18 local, 16 CI and deployment, provisional pending compatibility verification / SQLAlchemy 2.0 / Alembic / Pydantic v2 / uv; local PostgreSQL managed through pgAdmin 4 for development; Render for hosting; Docker deferred to a later containerisation phase). Rows marked **(Option B only)** or "Not built" below are out of scope for v1 and kept only for traceability.
+> **Changed 2026-10-28 (implementation at the project owner's direction, not a policy approval):** Q-02 for one table: citizen register/login accounts in `household_accounts` (Option C; contract §11.8). Q-04 (decision-maker login) is unchanged. Q-13 (retention, deletion, consent) and Q-34 (the "does not collect or save your details" copy) are open.
 > **Superseded sections:** §4 (tables), §5 (API resources) and §6 (validation) were written before the API contract existed. They are kept for history and each is marked **SUPERSEDED** with a pointer. For endpoints, parameters, fields, status codes and validation, **only [api-contract-proposal.md](./api-contract-proposal.md) is authoritative**. For tables, see `IMPLEMENTATION_PLAN.md` §3–§4. §2 (BR-01 to BR-16) remains authoritative for formulas.
 > The authoritative API contract is [api-contract-proposal.md](./api-contract-proposal.md) (contract v0.2 rev 2). The build sequence is [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md).
 
@@ -23,7 +24,7 @@ The design does not show a CRUD-heavy app. Most of what it shows falls into thre
 | B. Anonymous server persistence | The backend issues an anonymous household ID or device token and stores the profile, plan and expenses. | Contradicts the privacy copy unless that copy changes. Needs a retention policy (Q-13). |
 | C. Account-based | Citizen accounts. | Contradicts "No account. No phone number." |
 
-**Q-02 is resolved as Option A.** The Option B additions marked **(Option B only)** are not built.
+**Q-02 is resolved as Option A.** The Option B additions marked **(Option B only)** are not built. **Since 2026-10-28, Option C exists for accounts only:** `POST /auth/register` and `POST /auth/login` store citizen accounts (contract §11.8). This contradicts the design copy quoted above; the conflict is open as Q-34, and retention, deletion and consent as Q-13.
 
 ### Where calculations run (decision needed: Q-16)
 
@@ -52,12 +53,14 @@ All of these are taken from on-screen text and verified against the demo numbers
 | BR-15 | Daily spending total | `Σ expense.amount where date = day` | 3,500 + 1,000 + 2,000 = 6,500 | [E] `2:6449` |
 | BR-16 | Vulnerability weights must sum to 1.0 | Validation | 0.4 + 0.4 + 0.2 | [I] |
 | BR-17 | Lump-sum shock spread (contract v0.4) | `shockCostMonthly = round_half_up(amount ÷ durationMonths)`, added to essentials | 45,000 ÷ 3 = 15,000 | MISSING_APIS.pdf p. 9; spreading follows the frontend simulator [I] |
-| BR-18 | Net monthly gap after coping levers (v0.4) | `netGap = max(0, rawGap − Σ monthly lever relief)`; `buffer = savings + Σ one-off lever support`; runway = BR-06 on `buffer` and `netGap` | max(0, 6,000 − 17,200) = 0; 60,000 + 25,000 = 85,000 | MISSING_APIS.pdf p. 9 |
-| BR-19 | Resilience score, illustrative (v0.4) | `baseline = clamp(70 − round_half_up(rawGap ÷ 2,000), 45, 75)`; `score = min(95, baseline + 7 × levers + (8 if levers close a rawGap > 0))`; `scoreChange = score − baseline` | 6,000 gap, 3 levers, gap closed: 67 → 95 (+28); no gap, no levers: 70 → 70 (0) | Based on the frontend simulator's heuristic [I], except that the +8 needs a closed gap (the frontend also gives it with no gap and no levers); not validated. The PDF example (88, "+26") is not reproducible |
+| BR-18 | Net monthly gap after coping levers (v0.4) | `netGap = max(0, rawGap − Σ monthly lever relief)`; `buffer = savings + Σ one-off lever support`; `runwayMonths = round_half_up(buffer ÷ rawGap, 1 dp)`, `null` only when rawGap is 0 (how long the buffer lasts if the levers do not work) | max(0, 6,000 − 17,200) = 0; 60,000 + 25,000 = 85,000; 85,000 ÷ 6,000 = 14.2 | MISSING_APIS.pdf p. 9; runway basis approved by the project owner on 2026-10-27 (it was buffer ÷ net gap) |
+| BR-19 | Resilience score, illustrative (v0.4) | `baseline = clamp(70 − round_half_up(rawGap ÷ 2,000), 45, 75)`; `score = min(95, baseline + 7 × levers + (8 if levers close a rawGap > 0))`; `scoreChange = score − baseline` | 6,000 gap, 3 levers, gap closed: 67 → 95 (+28); no gap, no levers: 70 → 70 (0) | Based on the frontend simulator's heuristic [I], except that the +8 needs a closed gap (the frontend also gives it with no gap and no levers); not validated. The PDF states no formula; its example (88, "+26") would need a baseline of 62, which neither the PDF nor the frontend produces, so it is not reproduced (contract §11.1) |
 | BR-20 | Agro-savings projection (v0.4) | `monthly = round_half_up(perMealSaving × mealsPerWeek × 52 ÷ 12)`, with `perMealSaving` from BR-14 | 400 × 3 × 52 ÷ 12 = 5,200 | MISSING_APIS.pdf p. 10. 52/12 is the exact mean weeks per month; the frontend's 4.33 gives 5,196 |
 | BR-21 | Stress-test increase (v0.4) | `increase = Σ round_half_up(line × pct ÷ 100)` over the scenario's categories; `stressed = baseline + increase` | food 65,000 × 15% = 9,750; 150,000 → 159,750 | MISSING_APIS.pdf p. 8 |
-| BR-22 | Buffer impact in months (v0.4) | `−round_half_up(12 × increase ÷ baselineTotal, 1 dp)`: a year of the increase, in months of the baseline basket; `null` if the basket is 0 | −(12 × 9,750 ÷ 150,000) = −0.8 | Defined by the backend [I]: the PDF's −1.2 cannot be derived from its request (no savings or income) |
+| BR-22 | Buffer impact in months (v0.4) | `−round_half_up(12 × increase ÷ baselineTotal, 1 dp)`: a year of the increase, in months of the baseline basket; `null` if the basket is 0 | −(12 × 9,750 ÷ 150,000) = −0.8 | Defined by the backend [I]: the PDF states no formula, and its −1.2 cannot be derived from its request (no savings, income or buffer); the other three example figures are reproduced (contract §11.3) |
 | BR-23 | District comparison (v0.4) | `net = totalB − totalA`; `pct = round_half_up(net ÷ totalA × 100, 1 dp)`; per-category `B − A`; `multiplier = round_half_up(totalB ÷ totalA, 3 dp)`; ratios `null` if totalA is 0 | PDF baskets: −35,000, −23.3, 0.767 | MISSING_APIS.pdf p. 7 |
+| BR-24 | Household-size scaling of the district basket (v0.4) | each line `round_half_up(line(4) × √(n ÷ 4))`; the total is the sum of scaled lines | size 5: 65,000 × 1.118034 = 72,672; total 167,705 | OECD square-root equivalence scale, approved by the project owner on 2026-10-27; used by `district-comparison` and `stress-test`; also, approved on 2026-10-27, the Gasabo `shopping-checklist` at sizes other than 4: item prices and the two basket totals scaled the same way, `estimatedSavings` = scaled unoptimized − scaled total, quantities `round_half_up(q × √(n ÷ 4), 0.1)` in the same unit (size 5: 3 kg → 3.4 kg, 2,400 → 2,683; total 6,988), labelled `modelled_from_pdf_example` |
+| BR-25 | Purchasing-power equivalents (v0.4) | `count = ⌊max(0, monthlyProjectedSavings) ÷ unitCost⌋` per item; unit costs implied by the PDF example: water 2,600 RWF a week, bus ride 650, egg 200 | 5,200 → 2 weeks, 8 rides, 26 eggs; 1,733 → 0, 2, 8 | MISSING_APIS.pdf p. 10, owner-approved illustrative values (2026-10-27); unit costs are 5,200 ÷ the example counts, not market prices |
 
 **Money** is whole RWF integers ([E] no decimals anywhere). **Percentages** shown to users are integers (20%) or 1-dp ratios (83.3%). Rounding modes are **[U] Q-17**.
 
@@ -103,7 +106,7 @@ All of these are taken from on-screen text and verified against the demo numbers
 
 ### 3.4 Users (decision-makers)
 
-- **User** {`id`, `name`, `email`, `organisation`?, `role`}: **not built.** Q-04 is resolved as no login for the demo. The only evidence is the avatar `2:6765`.
+- **User** {`id`, `name`, `email`, `organisation`?, `role`}: **not built.** Q-04 is resolved as no decision-maker login for the demo. The only evidence is the avatar `2:6765`. Citizen accounts are a different entity (`household_accounts`, contract §11.8, a Q-02 change) and are not decision-maker users.
 
 ### 3.5 Relationships
 
@@ -134,7 +137,7 @@ Methodology (version) 1─* calculations / dataSources / boundaries / checklist
 | `synthetic_households` | `id` PK, `district_code` FK, `household_size`, `primary_income_source` enum, `monthly_income`, `monthly_essentials`, `savings`. Index (`district_code`) |
 | `monthly_series` | PK(`series_code`, `period_month`), `essentials`, `income` |
 | `methodology_versions` + child tables, or one JSON document | Depends on Q-12 |
-| `users` | Not built (Q-04 resolved: no login) |
+| `users` | Not built as such. Since 2026-10-28 `household_accounts` holds register/login accounts (contract §11.8; a Q-02 change for that table, Option C; Q-04 unchanged) |
 | `households`, `budget_plans`, `budget_plan_lines`, `expenses` | **(Option B only)** |
 
 Seeding: all demo values in the design should become a **seed dataset** so the frontend can reproduce the designs exactly. **[I]**
@@ -158,7 +161,7 @@ Seeding: all demo values in the design should become a **seed dataset** so the f
 | `/calculations/budget-comparison` | POST | **Optional** §6 | C3 | [I] |
 | `/demo-household` | GET | **Optional** §6 | C1, C2 | [I] |
 | `/health`, `/ready` (root, not under `/api/v1`) | GET | Core §2 | — | — |
-| `/auth/*`, `/me` | — | Not built (Q-04 resolved) | Avatar | — |
+| `/auth/*`, `/me` | `POST /auth/register`, `POST /auth/login` | Built 2026-10-28 (contract §11.8); `/me` not built | Avatar | — |
 | `/households/*`, `/expenses` | — | Not built (Q-02 resolved as Option A) | C1, C2 | — |
 
 No search, sorting UI or pagination is designed. Lists are bounded (30 districts, 5 categories, a few swaps). The ranking is "top N by score desc". **[E]/[I]**
@@ -186,7 +189,7 @@ All field-level failures return 422 in the shared error format (see the API cont
 
 | Concern | Requirement | Evidence |
 |---|---|---|
-| No personal data collection (citizen) | Citizen endpoints must not require identity and must not log request bodies containing income or expense data. No analytics that identify a household without consent. | [E] `2:6407`, `2:7417` |
+| No personal data collection (citizen) | Citizen endpoints must not require identity and must not log request bodies containing income or expense data. No analytics that identify a household without consent. **Exception since 2026-10-28:** `POST /auth/register` stores a citizen account (contract §11.8); no served endpoint requires a token. Q-13 and Q-34 are open. | [E] `2:6407`, `2:7417` |
 | Decision-maker access | Public for the demo (Q-04 resolved). Real data would need authentication and role-based access. | Q-04, Q-24 |
 | Read-only reference data | Mutating endpoints exist only for admins (Q-12), or seeding is done by migration or script. | [I] |
 | Rate limiting | Calculation endpoints are unauthenticated and CPU-cheap; basic per-IP limits are desirable. Planned as **optional** step O3, not core. | [I], Q-24 |
@@ -220,7 +223,7 @@ No evidence exists for: file uploads (images are static design assets), payments
 6. **Decision-maker data**: synthetic households or aggregates, vulnerability model and scores, monthly series.
 7. **Decision-maker endpoints**: filters, overview, district vulnerability, policy scenario.
 8. **Methodology endpoint**, or hand that content to the frontend (Q-12).
-9. ~~Auth and household persistence~~: not built (Q-04 and Q-02 resolved).
+9. ~~Auth and household persistence~~: citizen register/login built on 2026-10-28 (contract §11.8; a Q-02 change for accounts only). Decision-maker login (Q-04) and persistence of profile, plan and expenses are not built.
 10. Localisation of content (Q-03).
 
 Dependencies: 4 depends on nothing and can start immediately. 5 and 7 depend on 3 and 4. 6 depends on Q-18. 9 depends on its decisions.
