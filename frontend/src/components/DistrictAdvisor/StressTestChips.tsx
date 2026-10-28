@@ -2,13 +2,15 @@ import React from 'react';
 import type { Language } from '../../types';
 import type { StressTestScenario } from '../../data/mockAdvisorData';
 import { ADVISOR_TRANSLATIONS } from '../../data/mockAdvisorData';
-import { Activity, Zap, TrendingUp, AlertTriangle } from 'lucide-react';
+import type { StressTestResponse } from '../../services/api';
+import { Activity, Zap, TrendingUp, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 interface StressTestChipsProps {
   scenario: StressTestScenario;
   onScenarioChange: (s: StressTestScenario) => void;
   language: Language;
   netSavingsMonthly: number;
+  apiResult?: StressTestResponse | null;
 }
 
 export const StressTestChips: React.FC<StressTestChipsProps> = ({
@@ -16,6 +18,7 @@ export const StressTestChips: React.FC<StressTestChipsProps> = ({
   onScenarioChange,
   language,
   netSavingsMonthly,
+  apiResult,
 }) => {
   const t = ADVISOR_TRANSLATIONS[language];
 
@@ -88,6 +91,20 @@ export const StressTestChips: React.FC<StressTestChipsProps> = ({
           <TrendingUp className="w-4 h-4 text-rose-600 shrink-0" />
           <span>
             Simulating +10% housing rent inflation: High rental density in Kigali increases family overhead rapidly, whereas secondary city rental baselines remain moderate and stable.
+          </span>
+        </div>
+      )}
+
+      {apiResult && (scenario === 'food_inflation' || scenario === 'rent_surge') && (
+        <div className="bg-[#EBF5EE] border border-[#CCE3D5] rounded-xl p-2.5 text-xs text-[#1E5E45] flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-[#1E5E45] shrink-0" />
+            <span>
+              Backend Stress Impact: Stressed basket total <strong>{apiResult.stressedTotal.toLocaleString()} RWF</strong> (+{apiResult.monthlyIncrease.toLocaleString()} RWF/mo, runway impact: {apiResult.bufferImpactMonths} mo)
+            </span>
+          </div>
+          <span className="text-[10px] bg-white text-[#1E5E45] px-2 py-0.5 rounded border border-[#CCE3D5] font-mono shrink-0">
+            POST /calculations/stress-test
           </span>
         </div>
       )}

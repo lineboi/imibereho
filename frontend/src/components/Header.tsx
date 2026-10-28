@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import type { Language, NavTab } from '../types';
 import { TRACKER_TRANSLATIONS } from '../data/mockTrackerData';
-import { checkBackendReadiness } from '../services/api';
-import { Home, BarChart2, ShieldCheck, Sprout } from 'lucide-react';
+import { checkBackendReadiness, type ReadinessResult } from '../services/api';
+import { Home, BarChart2, ShieldCheck, Sprout, Activity } from 'lucide-react';
+import { ReadinessModal } from './ReadinessModal';
 
 interface HeaderProps {
   language: Language;
@@ -20,12 +21,26 @@ export const Header: React.FC<HeaderProps> = ({
   onLogoClick,
 }) => {
   const t = TRACKER_TRANSLATIONS[language];
-  const [backendReady, setBackendReady] = useState<boolean>(false);
+  const [readiness, setReadiness] = useState<ReadinessResult | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    checkBackendReadiness().then((res) => {
-      setBackendReady(res.ready);
-    });
+    let active = true;
+
+    const runCheck = () => {
+      checkBackendReadiness().then((res) => {
+        if (active) setReadiness(res);
+      });
+    };
+
+    runCheck();
+    // Poll every 30s to keep backend readiness live
+    const interval = setInterval(runCheck, 30000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const tabs: { id: NavTab; label: string; icon: React.ReactNode }[] = [
@@ -110,15 +125,30 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right side: Backend Live Status & Language Switcher EN / RW */}
         <div className="flex items-center gap-3 shrink-0">
-          {backendReady && (
+          <button
+            type="button"
+            onClick={() => setIsModalOpen(true)}
+            title="Click to view FastAPI Backend & Database Readiness Diagnostics (/ready)"
+            className={`hidden sm:inline-flex items-center gap-1.5 text-[10.5px] font-semibold px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
+              readiness?.ready
+                ? 'bg-[#E8F3EC] text-[#1E5E45] border-[#CEE3D5] hover:bg-[#d9ece0]'
+                : readiness?.status === 'offline'
+                ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+            }`}
+          >
             <span
-              title="FastAPI Backend Connected & Healthy (/ready)"
-              className="hidden sm:inline-flex items-center gap-1.5 bg-[#E8F3EC] text-[#1E5E45] text-[10.5px] font-semibold px-2 py-0.5 rounded-full border border-[#CEE3D5]"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-[#1E5E45] animate-pulse" />
-              <span>API Live</span>
-            </span>
-          )}
+              className={`w-1.5 h-1.5 rounded-full ${
+                readiness?.ready
+                  ? 'bg-[#1E5E45] animate-pulse'
+                  : readiness?.status === 'offline'
+                  ? 'bg-red-600'
+                  : 'bg-amber-600 animate-pulse'
+              }`}
+            />
+            <Activity className="w-3 h-3 opacity-70" />
+            <span>{readiness?.ready ? 'API Live (/ready)' : readiness?.status === 'offline' ? 'API Offline' : 'API Degraded'}</span>
+          </button>
 
           <div className="flex items-center text-sm font-semibold tracking-wider">
             <button
@@ -147,6 +177,13 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
       </div>
+
+      <ReadinessModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        initialResult={readiness}
+        onRefreshSuccess={(res) => setReadiness(res)}
+      />
     </header>
   );
 };

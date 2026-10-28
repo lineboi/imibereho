@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Language } from '../../types';
 import { AGRO_SWAPS_TRANSLATIONS } from '../../data/mockAgroSwapsData';
+import { fetchHarvestCalendar, type HarvestCalendarResponse } from '../../services/api';
 import { Calendar, Sun, CloudRain, Sprout } from 'lucide-react';
 
 interface SeasonalCalendarCardProps {
@@ -9,6 +10,13 @@ interface SeasonalCalendarCardProps {
 
 export const SeasonalCalendarCard: React.FC<SeasonalCalendarCardProps> = ({ language }) => {
   const t = AGRO_SWAPS_TRANSLATIONS[language];
+  const [calendarApi, setCalendarApi] = useState<HarvestCalendarResponse | null>(null);
+
+  useEffect(() => {
+    fetchHarvestCalendar().then((res) => {
+      if (res) setCalendarApi(res);
+    });
+  }, []);
 
   const seasons = [
     {
@@ -66,9 +74,16 @@ export const SeasonalCalendarCard: React.FC<SeasonalCalendarCardProps> = ({ lang
           </div>
         </div>
 
-        <span className="bg-[#E7F3EC] text-[#1E5E45] text-[11px] font-bold px-2 py-0.5 rounded-full border border-[#CCE2D4] shrink-0">
-          🇷🇼 MINAGRI Cycle
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          {calendarApi && (
+            <span className="text-[10px] bg-[#EAF5EE] text-[#1E5E45] px-2 py-0.5 rounded-full border border-[#D0E5D8] font-mono hidden sm:inline">
+              GET /agro/harvest-calendar (200 OK)
+            </span>
+          )}
+          <span className="bg-[#E7F3EC] text-[#1E5E45] text-[11px] font-bold px-2 py-0.5 rounded-full border border-[#CCE2D4]">
+            🇷🇼 MINAGRI Cycle
+          </span>
+        </div>
       </div>
 
       {/* Seasons Grid */}
