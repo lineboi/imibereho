@@ -22,6 +22,7 @@ from argon2.exceptions import InvalidHashError, VerificationError
 TOKEN_TTL_SECONDS: Final = 86_400
 TOKEN_ALGORITHM: Final = "HS256"  # noqa: S105 (an algorithm name, not a secret)
 ACCOUNT_ID_PREFIX: Final = "usr_"
+TRANSACTION_ID_PREFIX: Final = "tx_"
 _CROCKFORD: Final = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 _ACCOUNT_ID: Final = re.compile(r"usr_[0-9A-HJKMNP-TV-Z]{26}")
 
@@ -47,13 +48,22 @@ def verify_password(password_hash: str | None, password: str) -> bool:
         return False
 
 
-def new_account_id(now_ms: int | None = None, randomness: int | None = None) -> str:
-    """'usr_' + 26 Crockford base32 characters: 10 for the time, 16 for the randomness."""
+def ulid(now_ms: int | None = None, randomness: int | None = None) -> str:
+    """26 Crockford base32 characters: 10 for the millisecond time, 16 for 80 random bits."""
     timestamp = time.time_ns() // 1_000_000 if now_ms is None else now_ms
     random_bits = secrets.randbits(80) if randomness is None else randomness
     value = (timestamp << 80) | random_bits
-    chars = [_CROCKFORD[(value >> shift) & 0x1F] for shift in range(125, -1, -5)]
-    return ACCOUNT_ID_PREFIX + "".join(chars)
+    return "".join(_CROCKFORD[(value >> shift) & 0x1F] for shift in range(125, -1, -5))
+
+
+def new_account_id(now_ms: int | None = None, randomness: int | None = None) -> str:
+    """'usr_' + a ULID."""
+    return ACCOUNT_ID_PREFIX + ulid(now_ms, randomness)
+
+
+def new_transaction_id() -> str:
+    """'tx_' + a ULID (the form of the PDF's `tx_09JKA`; contract §11.10)."""
+    return TRANSACTION_ID_PREFIX + ulid()
 
 
 class InvalidTokenError(Exception):

@@ -44,6 +44,7 @@ Stack: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (typed), Alembic, Postgre
 | `GET /api/v1/shocks/catalog`, `POST /api/v1/calculations/resilience-simulation` | **v0.4** §11.1 (frontend sign-off pending) | Illustrative shock catalogue (the PDF's shocks plus `harvest_disruption`) and coping-lever simulation (BR-17 to BR-19); stateless |
 | `POST /api/v1/auth/register`, `POST /api/v1/auth/login` | **v0.5** §11.8 (frontend sign-off pending) | Household accounts as in the PDF: stores the identifier, an Argon2id password hash and the profile (`household_accounts`); returns an HS256 bearer token (86,400 s). A Q-02 change for that table (citizen accounts, 2026-10-28); Q-04 unchanged; Q-13 and Q-34 open |
 | `GET /api/v1/user/profile`, `PATCH /api/v1/user/profile` | **v0.6** §11.9 (frontend sign-off pending) | The logged-in household's profile; needs a bearer token. GET is the PDF's shape; PATCH (not the PDF's `PUT`, owner direction) changes any of its fields except `id`; that body is a contract extension approved on 2026-10-28, since the PDF gives `PUT` no body. `plannedEssentials`/`savingsBuffer` are null until set |
+| `GET /api/v1/tracker/overview`, `GET`/`POST /api/v1/tracker/transactions`, `PATCH`/`DELETE /api/v1/tracker/transactions/{id}`, `GET /api/v1/tracker/daily-trend`, `GET /api/v1/tracker/burn-rate` | **v0.7** §11.10 (frontend sign-off pending) | The household's daily tracker; needs a bearer token. PDF bodies where given; PATCH instead of PUT; burn-rate, budget health (BR-26/27), pagination and `Idempotency-Key` are contract extensions |
 | `GET /api/v1/nisr/poverty`, `GET /api/v1/nisr/health-insurance` | **v0.3** §10 (agreed 2026-10-27) | Official NISR EICV7 2023/24 estimates (Tables A9.23, A3.7) with standard errors and 95% CIs; `isIllustrative: false`. Same guide |
 
 Not built: the optional `GET /api/v1/methodology` and `GET /api/v1/demo-household` (each has a
@@ -51,7 +52,8 @@ frontend fallback, contract §6), rate limiting (optional O3), and per-district 
 planned). Accounts exist only for `POST /api/v1/auth/register` and `POST /api/v1/auth/login`
 (contract v0.5 §11.8; they need `JWT_SECRET_KEY`, else 503 `auth-not-configured`). The
 current-account dependency (`app/services/current_account.py`) protects `GET` and
-`PATCH /api/v1/user/profile` (contract v0.6 §11.9), the only routes that require a token. There is no pagination (contract §1: lists hold ≤ 30 items).
+`PATCH /api/v1/user/profile` (contract v0.6 §11.9) and every `/api/v1/tracker/*` route (v0.7
+§11.10), the only routes that require a token. There is no pagination (contract §1: lists hold ≤ 30 items).
 
 Errors are RFC 9457 `application/problem+json` (contract §1.3). Every response carries
 `X-Request-ID` (a safe client-supplied value is echoed back) and `Content-Language: en`.

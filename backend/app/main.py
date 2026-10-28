@@ -100,9 +100,10 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
-        # Authorization carries the bearer token of contract §11.8 for protected routes.
-        allow_headers=["Content-Type", "Authorization", REQUEST_ID_HEADER],
+        allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        # Authorization carries the bearer token (contract §11.8); Idempotency-Key makes a tracker
+        # POST safe to retry (§11.10).
+        allow_headers=["Content-Type", "Authorization", "Idempotency-Key", REQUEST_ID_HEADER],
         expose_headers=[REQUEST_ID_HEADER],
         allow_credentials=False,
     )

@@ -15,6 +15,7 @@ from app.api.v1.endpoints import (
     resilience,
     seasonal_swaps,
     shocks,
+    tracker,
     vulnerability,
 )
 
@@ -33,5 +34,6 @@ for module in (
     nisr,
     auth,
     profile,
+    tracker,
 ):
     router.include_router(module.router)

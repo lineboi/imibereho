@@ -4,6 +4,7 @@
 > **Status: v0.2, backend proposal, awaiting frontend sign-off.** Nothing here is implemented yet. Once frontend and backend agree, the status becomes "agreed". After that, changes need a new contract version and a note in §9.
 > **Status of v0.3 (§10, official published statistics): agreed.** v0.3 was agreed by the frontend teammate on 27 October 2026. The approval covers contract v0.3 only; it does not cover v0.2 rev 2, whose status above is unchanged.
 > **Status of v0.4 (§11, from `MISSING_APIS.pdf`): implemented by the backend at the project owner's direction (2026-10-27); frontend sign-off pending.**
+> **Status of v0.7 (§11.10, daily tracker: overview, transactions, daily trend, burn rate): implemented by the backend at the project owner's direction (2026-10-28); frontend sign-off pending.** The PDF's `PUT /tracker/transactions/{id}` is `PATCH` (owner direction). Where the PDF gives a body it is followed field for field; the PATCH and DELETE bodies, `burn-rate`, the budget-health rule and pagination are contract extensions it does not specify (§11.10).
 > **Status of v0.6 (§11.9, household profile: `GET` and `PATCH /user/profile`): implemented by the backend at the project owner's direction (2026-10-28); frontend sign-off pending.** The PDF's `PUT` is replaced by `PATCH` at the owner's direction; the PDF lists `PUT` but gives that update no body, so the PATCH body is an implementation decision and contract extension, approved by the project owner on 2026-10-28; it is not specified by the PDF (derived from the PDF's GET example; §11.9).
 > **Status of v0.5 (§11.8, household accounts: register and login): implemented by the backend at the project owner's direction (2026-10-28); frontend sign-off pending.** It changes **Q-02 for one table**: citizen accounts (Option C) in `household_accounts`. **Q-04** (decision-maker login) is **unchanged**. Q-13 (retention, deletion, consent) and Q-34 (the design copy "does not collect or save your details") are open; see §11.8.
 > **Basis:** the Figma screens ([design-inventory.md](../figma/design-inventory.md)), [backend-requirements.md](./backend-requirements.md), and the resolutions of Q-01, Q-02, Q-04 and Q-15 in [open-questions.md](../requirements/open-questions.md).
@@ -29,8 +30,8 @@ Three version numbers exist. They are independent.
 |---|---|
 | Base URL | `/api/v1`. The health checks `/health` and `/ready` are at the root, outside `/api/v1`. |
 | Format | JSON, UTF-8. Field names are `camelCase`. |
-| Auth | `POST /auth/register` and `POST /auth/login` issue bearer tokens (v0.5, §11.8): citizen accounts, a Q-02 change made at the project owner's direction on 2026-10-28; Q-04 (decision-maker login) is unchanged. A current-account dependency verifies tokens; since v0.6 `GET` and `PATCH /user/profile` (§11.9) require one. Every other endpoint stays public. |
-| Citizen data | Never stored (Q-02 resolved, Option A), with one exception since v0.5: `POST /auth/register` stores a household account (§11.8), and since v0.6 `PATCH /user/profile` changes it, including the planned essentials and savings buffer (§11.9). Request bodies are processed and then discarded, never logged. Money values travel only in POST bodies, never in query strings, because hosting-platform access logs record full URLs. |
+| Auth | `POST /auth/register` and `POST /auth/login` issue bearer tokens (v0.5, §11.8): citizen accounts, a Q-02 change made at the project owner's direction on 2026-10-28; Q-04 (decision-maker login) is unchanged. A current-account dependency verifies tokens; since v0.6 `GET` and `PATCH /user/profile` (§11.9) and since v0.7 every `/tracker/*` route (§11.10) require one. Every other endpoint stays public. |
+| Citizen data | Never stored (Q-02 resolved, Option A), with one exception since v0.5: `POST /auth/register` stores a household account (§11.8), and since v0.6 `PATCH /user/profile` changes it, including the planned essentials and savings buffer (§11.9), and since v0.7 the tracker stores the household's transactions (§11.10). Request bodies are processed and then discarded, never logged. Money values travel only in POST bodies, never in query strings, because hosting-platform access logs record full URLs. |
 | Money | Integer RWF, e.g. `180000`. The frontend formats `180,000 RWF` and `18m RWF`. |
 | Numbers in responses | Every numeric field is a **JSON number, never a string**. Integers (money, counts, scores, months) are written without a decimal point. Fractional fields are written with no more decimal places than listed: ratios and shares 4 (`0.8333`), `runwayMonths` 1 (`7.5`, `10.0`), weights 2 (`0.4`), swap quantities 2 (`1`, `2`). |
 | Percent inputs | Integer 0–100. `20` means 20%. |
@@ -91,8 +92,10 @@ Content type: `application/problem+json`.
 | 405 | `method-not-allowed` | Wrong HTTP method | — |
 | 401 | `invalid-credentials` | `POST /auth/login` only: unknown identifier or wrong password (one answer for both); carries `WWW-Authenticate: Bearer` (§11.8) | — |
 | 401 | `not-authenticated` | A protected route only (`GET` and `PATCH /user/profile`, §11.9): a missing, malformed, wrongly signed or expired bearer token, or one whose account no longer exists (one answer for all); carries `WWW-Authenticate: Bearer` (§11.8) | — |
+| 404 | `transaction-not-found` | `PATCH`/`DELETE /tracker/transactions/{id}`: no transaction with this id belongs to the caller (another household's id included) (§11.10) | — |
 | 409 | `identifier-taken` | `POST /auth/register` only: an account already uses this identifier (§11.8) | — |
-| 422 | `validation` | Field-level failures | `required`, `out_of_range`, `not_integer`, `unknown_value` (a bad enum or filter value), `too_long`, `unknown_field` (an extra body field); for the account endpoints only (§11.8), also `too_short` and `invalid_format` |
+| 409 | `idempotency-key-reused` | `POST /tracker/transactions` only: the `Idempotency-Key` was used before with a different body (§11.10) | — |
+| 422 | `validation` | Field-level failures | `required`, `out_of_range`, `not_integer`, `unknown_value` (a bad enum or filter value), `too_long`, `unknown_field` (an extra body field); for the account (§11.8) and tracker (§11.10) endpoints, also `too_short` and `invalid_format` (each with a message naming the expected format) |
 | 429 | `rate-limited` | Too many calculation requests; includes a `Retry-After` header. **Optional step**; may not ship | — |
 | 500 | `internal` | Unexpected error. No internal detail is returned; quote `X-Request-ID` when reporting | — |
 | 503 | `not-ready` | Only from `/ready`; carries a `checks` member (§2) | — |
@@ -461,6 +464,7 @@ Rate limiting (429) is also optional. Every other code in §1.3 applies to all e
 | 0.5 | 2026-10-28 | **Implemented by the backend at the project owner's direction; frontend sign-off pending.** Adds §11.8: `POST /api/v1/auth/register` (201) and `POST /api/v1/auth/login` (200), with the PDF's fields exactly; the `household_accounts` table (migration 0009), Argon2id password hashes and HS256 bearer tokens valid for 86,400 s; new problem types `invalid-credentials` (401), `identifier-taken` (409) and `auth-not-configured` (503); new 422 codes `too_short` and `invalid_format` for these two endpoints. A Q-02 change for that table only (citizen accounts, Option C); Q-04 unchanged (§1, §11.4). |
 | 0.5 rev 1 | 2026-10-28 | Security review fixes, frontend sign-off still pending. Identifiers are ASCII only: lookalikes (non-ASCII digits, invisible or fullwidth characters) are rejected, not normalised. A current-account dependency for future protected routes (new 401 `not-authenticated`; HS256 only; `sub`, `iat`, `exp` required; the account must exist); CORS allows `Authorization`. The Q-02/Q-04 wording is corrected and the open privacy decisions are listed (Q-13, Q-34). No endpoint added or changed in shape. |
 | 0.6 | 2026-10-28 | **Implemented by the backend at the project owner's direction; frontend sign-off pending.** Adds §11.9: `GET /api/v1/user/profile` (the PDF's response fields exactly) and `PATCH /api/v1/user/profile` in place of the PDF's `PUT` (owner direction; `PUT` gives 405). The PATCH body is a contract extension, not from the PDF (which lists `PUT` with no body): derived from the GET shape and approved by the project owner on 2026-10-28. Migration 0010 adds `planned_essentials`, `savings_buffer` (null until set) and `updated_at`. CORS allows `PATCH`; a 405's `Allow` header now lists every method of the path. |
+| 0.7 | 2026-10-28 | **Implemented by the backend at the project owner's direction; frontend sign-off pending.** Adds §11.10, the daily tracker: `GET /tracker/overview`, `GET`/`POST /tracker/transactions`, `PATCH`/`DELETE /tracker/transactions/{id}` (PATCH in place of the PDF's `PUT`), `GET /tracker/daily-trend` and `GET /tracker/burn-rate`; migration 0011 (`tracker_transactions`); BR-26 (budget health) and BR-27 (burn rate); new problem types `transaction-not-found` (404) and `idempotency-key-reused` (409); optional `Idempotency-Key` on POST; keyset pagination. CORS allows `DELETE` and `Idempotency-Key`. |
 
 ## 10. Official published statistics (contract v0.3)
 
@@ -565,16 +569,15 @@ All three endpoints are illustrative. **Gasabo and Musanze** use the PDF's examp
 
 ### 11.4 Blocked by Q-02 and Q-04 (not served)
 
-These eight PDF endpoints need server-side storage of a household's own data beyond its account, and ownership checks on top of the current-account dependency (§11.8). Q-02 (citizen data is never stored, except the account table of §11.8) still applies to them, so the routes aren't registered and an unknown path gives 404 `not-found`. Under Q-02 the tracker, profile and plan data stay on the device. A test (`test_privacy_blocked_pdf_endpoints_are_not_served`) keeps the routes out.
+Of the twelve PDF endpoints first listed here, only these remain unserved. The PDF's two `PUT`s are replaced by `PATCH` and answer 405. The resilience plan is still not stored: under Q-02 it stays on the device. A test (`test_privacy_blocked_pdf_endpoints_are_not_served`) keeps the routes out.
 
 | Endpoint | Needs |
 |---|---|
 | `PUT /api/v1/user/profile` | replaced by `PATCH` (v0.6, §11.9); `PUT` answers 405 |
-| `GET /api/v1/tracker/overview`, `GET /api/v1/tracker/daily-trend`, `GET /api/v1/tracker/burn-rate` | aggregates of stored transactions (Q-02) |
-| `GET /api/v1/tracker/transactions`, `POST /api/v1/tracker/transactions`, `PUT /api/v1/tracker/transactions/{id}`, `DELETE /api/v1/tracker/transactions/{id}` | stored transactions (Q-02) |
+| `PUT /api/v1/tracker/transactions/{id}` | replaced by `PATCH` (v0.7, §11.10); `PUT` answers 405 |
 | `POST /api/v1/user/resilience-plan` | a stored plan (Q-02) |
 
-Register and login moved out of this list in v0.5 (§11.8), which supplies the accounts and tokens; the profile in v0.6 (§11.9). Serving the others needs the project owner to reopen Q-02 for their data, plus a privacy policy, consent (Q-13), the current-account dependency of §11.8 on each request, and ownership checks.
+Register and login moved out of this list in v0.5 (§11.8), which supplies the accounts and tokens; the profile in v0.6 (§11.9); the tracker in v0.7 (§11.10). Serving the resilience plan needs the project owner to reopen Q-02 for their data, plus a privacy policy, consent (Q-13), the current-account dependency of §11.8 on each request, and ownership checks.
 
 ### 11.5 Content endpoints
 
@@ -600,7 +603,7 @@ When a cited source is added, `status` becomes `"available"` and the fields fill
 |---|---|---|
 | 1–2 | `POST /auth/register`, `POST /auth/login` | Complete (v0.5, §11.8): the PDF's request and response fields exactly; validation rules, errors and token claims set by the backend because the PDF gives none |
 | 3–4 | `GET`/`PUT /user/profile` | Complete (v0.6, §11.9): `GET` exactly the PDF's response fields; `PUT` replaced by `PATCH` at the owner's direction, with a body that is a contract extension approved by the owner on 2026-10-28 (the PDF lists `PUT` with no body; derived from the GET shape) |
-| 5–11 | `/tracker/*` (overview, transactions ×4, daily-trend, burn-rate) | Blocked: Q-02 (§11.4) |
+| 5–11 | `/tracker/*` (overview, transactions ×4, daily-trend, burn-rate) | Complete (v0.7, §11.10): overview, transaction list, POST and daily trend follow the PDF's bodies (list items add `note`, the list adds `nextCursor`); `PUT` replaced by `PATCH`; the PATCH and DELETE bodies, `burn-rate` and the budget-health rule are contract extensions the PDF does not specify |
 | 12 | `GET /calculations/district-comparison` | Complete (illustrative): the PDF example exactly (Gasabo vs Musanze, §11.7); any household size (BR-24); districts without a PDF basket use the shared benchmark |
 | 13 | `GET /districts/{code}/basket-details` | Partial: the PDF example exactly for Gasabo; other districts have rent and transit but `null` staple prices and market hub (the PDF gives none) |
 | 14 | `POST /calculations/stress-test` | Complete with one documented deviation: totals as in the PDF; `bufferImpactMonths` is BR-22 (−0.8), not the PDF's −1.2, which no stated formula produces (§11.3) |
@@ -691,3 +694,62 @@ On 2026-10-27 the project owner approved serving the example values in `MISSING_
 - `updated_at` records the last change (not returned; the PDF's shape has no such field).
 
 **Storage (migration 0010).** Adds `planned_essentials`, `savings_buffer` (nullable INTEGER, each `NULL` or 0–100,000,000) and `updated_at` (nullable). Existing accounts keep `NULL`, so the migration needs no backfill. Downgrading drops the three columns and their values.
+
+### 11.10 Daily tracker (contract v0.7)
+
+**Status.** Implemented on 2026-10-28 at the project owner's direction; frontend sign-off pending. Every route needs `Authorization: Bearer <token>` (§11.8: 401 `not-authenticated`, 503 `auth-not-configured`) and works only on that household's transactions: another household's transaction id answers 404 `transaction-not-found`, never 403. Storing the transactions is a further use of the Q-02 change of §11.8 (citizen data on the server), not a privacy-policy approval: Q-13 (retention, deletion, consent) and Q-34 stay open. Deleting an account deletes its transactions.
+
+**Where the PDF gives a body, it is followed field for field:** the overview, the transaction list and its items, `POST /tracker/transactions` (request and response) and the daily trend. **Contract extensions the PDF does not specify** (backend decisions, labelled as such): the `PATCH` that replaces its `PUT` (which has no body), `DELETE`'s behaviour, the whole of `burn-rate` (listed without a body), the `dailyBudgetHealth` rule, the categories, pagination, `Idempotency-Key`, and two additions to PDF shapes (`note` on list items, `nextCursor` on the list).
+
+**Time.** Months and days are Kigali calendar time (UTC+2 all year). `month` is `YYYY-MM` and defaults to the current Kigali month (the PDF's "default: 2026-10" was the current month when it was written); a month after the current one, or before 2000-01, is 422 `out_of_range`. Transaction times travel as ISO 8601 strings with a zone and are returned in UTC (`2026-10-07T10:30:00Z`); sub-second precision is dropped.
+
+**Categories** (the frontend's modal choices, as codes; `iconType` equals `category`):
+- expense: `food`, `transport`, `utilities`, `other`;
+- income: `mobile_money`, `day_wage`, `market_sales`, `side_gig`.
+
+A category of the other type is 422 `unknown_value`; the database enforces the same pairs.
+
+**`GET /api/v1/tracker/overview?month=`** → `200` `{"month", "monthlyIncome", "plannedExpenses", "leftAfterPlan", "demoSavings", "totalSpentSoFar", "dailyBudgetHealth"}`, the PDF's fields.
+- `monthlyIncome` is the profile's; `plannedExpenses` its `plannedEssentials`; `demoSavings` its `savingsBuffer` (§11.9); `leftAfterPlan` = income − planned.
+- `totalSpentSoFar` = the month's expenses (income excluded).
+- `dailyBudgetHealth` (BR-26): `exceeded` when spent > planned; `caution` when spent > planned × days elapsed ÷ days in month (ahead of an even pace); else `normal`. The PDF shows `"normal"` and defines no rule; this one has no threshold beyond the plan itself and reproduces the PDF's example (118,400 by 26 October against 150,000 × 26/31 = 125,806).
+- With no `plannedEssentials` set, `plannedExpenses`, `leftAfterPlan` and `dailyBudgetHealth` are `null` (never an invented 0); likewise `demoSavings` without a `savingsBuffer`.
+
+**`GET /api/v1/tracker/transactions?month=&date=&type=&limit=&cursor=`** → `200` `{"items", "dayTotalExpenses", "nextCursor"}`.
+- `items`: `{"id", "type", "title", "category", "amount", "date", "iconType", "note"}` (the PDF's item plus `note`), oldest first, ties by id.
+- `date` (`YYYY-MM-DD`) lists one day instead of a month; with `month` it must lie in it; a future day is 422. `type` filters `expense` or `income`.
+- `dayTotalExpenses`: the day's expense total when `date` is given (whatever `type` filters), else `null`.
+- Pagination (extension): `limit` 1–500 (default 200, enough for a typical month in one page); `nextCursor` is opaque and `null` on the last page. It is a keyset over (time, id), so page *n* costs the same as page 1 and inserts never shift a page.
+
+**`POST /api/v1/tracker/transactions`** → `201` `{"id", "status": "recorded", "amount", "newMonthlySpentTotal"}`, the PDF's request and response.
+- Body: `type`, `title` (1–120 characters after trimming), `category`, `note` (optional, ≤ 280; blank = none), `amount` (whole RWF 1–100,000,000), `date` (not more than 5 minutes ahead of the server, for phone clock drift; not before 2000). Titles and notes may not contain control characters (a note may hold line breaks).
+- `id` is `tx_` + a ULID (the PDF's `tx_09JKA` form). `newMonthlySpentTotal` is the expense total of the transaction's month after the insert (the PDF's 118,400 + 9,500 = 127,900).
+- **`Idempotency-Key`** header (optional, 1–64 printable ASCII): a retry with the same key and the same body answers `201` with the **same `id`**, and nothing is stored twice, even for concurrent retries; the same key with a different body is 409 `idempotency-key-reused`. Keys are per account. Mobile networks drop responses, and this makes retrying safe. A replay reports the transaction **as it is when the retry arrives**: if it was edited in between, `amount` and `newMonthlySpentTotal` differ from the first response (the first response itself is not stored). **Known limitation:** a key is kept only on its transaction, so after that transaction is deleted, a late retry with the same key records it again. Keeping used keys after a delete, and for how long, is an open decision (it retains a trace of deleted data, so it belongs with Q-13).
+
+**`PATCH /api/v1/tracker/transactions/{id}`** (extension; replaces the PDF's body-less `PUT`) → `200` with the item as stored.
+- Any POST field; left out = unchanged; `note: null` clears the note; `null` on another field is 422 `required`; `{}` changes nothing.
+- The resulting category must belong to the resulting type (changing `type` alone from expense to income is 422 on `category`; send both). The same `date` rules as POST apply.
+- The row is locked while it is checked and written (`SELECT … FOR UPDATE`), so concurrent edits cannot interleave. `PUT` answers 405 with `Allow: DELETE, PATCH`.
+
+**`DELETE /api/v1/tracker/transactions/{id}`** (extension) → `204`, no body. A second delete is 404.
+
+**`GET /api/v1/tracker/daily-trend?month=`** → `200` `{"month", "points": [{"date", "total"}]}`, the PDF's shape: one point per Kigali day that has expenses, oldest first (days without spending are omitted, as in the PDF's example).
+
+**`GET /api/v1/tracker/burn-rate?month=`** (extension: the PDF lists it without a body) → `200` `{"month", "daysElapsed", "daysInMonth", "totalSpentSoFar", "averageDailySpend", "projectedMonthSpend", "plannedExpenses", "projectedVsPlan"}`. BR-27: average = spent ÷ days elapsed; projected = spent × days in month ÷ days elapsed (both whole RWF, half up); `projectedVsPlan` = projected − planned (positive means over the plan; `null` without a plan). A past month uses all its days.
+
+**A PDF inconsistency, reproduced separately.** The PDF's transaction-list example gives 4,500 of expenses on 7 October and its daily-trend example gives 6,500 for the same day. One dataset cannot produce both; BR-15's example (3,500 + 1,000 + 2,000 = 6,500) suggests the list example shows two of that day's three items. Tests reproduce each example on its own data.
+
+**Pending owner approval (not approved; implemented as described above so the frontend can integrate).** Each item can change without breaking the PDF's own fields:
+1. The PATCH body and response (the PDF's `PUT` has none).
+2. DELETE: a hard delete, 204, 404 on a second delete.
+3. The whole `burn-rate` response (BR-27).
+4. The `dailyBudgetHealth` rule (BR-26) and its vocabulary: the PDF shows `"normal"`, the frontend's own per-day indicator uses `safe`/`caution`/`exceeded`, and the name says "daily" while BR-26 measures the month's pace.
+5. The category codes (the database enforces them; a change needs a migration).
+6. `note` on list items, and the `nextCursor`/`limit`/`cursor` pagination.
+7. `Idempotency-Key`, including whether used keys outlive a delete (the known limitation above).
+8. The time rules: the default month, a 5-minute allowance for future dates, nothing before 2000, and `?month=` on daily-trend.
+9. `dayTotalExpenses`: `null` without `date`.
+
+Also open: frontend sign-off on v0.7, Q-13 (retention, deletion, consent: the tracker stores free-text titles and notes) and Q-34 (the "does not collect or save your details" copy). Known minor behaviours, not yet changed: a transaction dated up to 5 minutes ahead can fall on a Kigali day that `?date=` still calls the future; `month` is not range-checked when `date` is also given; there is no rate limit or per-account cap on transactions; `leftAfterPlan` is negative when the plan exceeds income.
+
+**Storage (migration 0011).** `tracker_transactions`: id, account (cascading), type, category, title, note, amount, time, idempotency key and body hash, created and updated times. CHECK constraints repeat the API's rules (type/category pairs, amount range, non-blank title, note length), and one index on (account, time, id) serves every query.

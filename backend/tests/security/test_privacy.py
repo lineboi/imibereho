@@ -44,7 +44,7 @@ APPROVED_TABLES: Final = frozenset(
     }
 )
 # Personal data, added at the project owner's direction on 2026-10-28 (contract §11.8): one table.
-ACCOUNT_TABLES: Final = frozenset({"household_accounts"})
+ACCOUNT_TABLES: Final = frozenset({"household_accounts", "tracker_transactions"})
 # Matched against whole `_`-separated tokens, so `footnote` or a district `name` do not match.
 PERSONAL_TOKENS: Final = frozenset(
     {
@@ -95,6 +95,25 @@ def test_no_column_looks_like_personal_data() -> None:
     assert not unexplained, unexplained
     # Every exemption must still exist, so a stale entry cannot hide a future column.
     assert set(offenders) == REVIEWED_NON_PERSONAL_COLUMNS
+
+
+# Contract §11.10 (migration 0011): what a household logs. `title` and `note` are free text the
+# household writes, so they can hold anything it chooses to type (Q-13 covers retention).
+TRACKER_COLUMNS: Final = frozenset(
+    {
+        "id", "account_id", "type", "category", "title", "note", "amount", "occurred_at",
+        "idempotency_key", "request_hash", "created_at", "updated_at",
+    }
+)  # fmt: skip
+
+
+def test_the_tracker_table_holds_only_the_reviewed_columns() -> None:
+    columns = {column.name for column in Base.metadata.tables["tracker_transactions"].columns}
+    assert columns == TRACKER_COLUMNS
+    # Rows go with their account: deleting an account deletes its transactions.
+    (foreign_key,) = Base.metadata.tables["tracker_transactions"].foreign_keys
+    assert foreign_key.column.table.name == "household_accounts"
+    assert foreign_key.ondelete == "CASCADE"
 
 
 def test_the_account_table_holds_only_the_reviewed_columns() -> None:

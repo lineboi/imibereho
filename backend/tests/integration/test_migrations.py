@@ -113,6 +113,10 @@ def test_stepwise_downgrade_and_upgrade(
 ) -> None:
     migrate.run(migrations_settings, "migrations", "upgrade", "head")
     migrate.run(migrations_settings, "migrations", "downgrade", "-1")
+    assert revision(migrations_database) == "0010"
+    assert "tracker_transactions" not in tables(migrations_database)
+    assert "planned_essentials" in columns(migrations_database, "household_accounts")
+    migrate.run(migrations_settings, "migrations", "downgrade", "-1")
     assert revision(migrations_database) == "0009"
     assert "planned_essentials" not in columns(migrations_database, "household_accounts")
     assert "identifier" in columns(migrations_database, "household_accounts")
@@ -135,7 +139,7 @@ def test_stepwise_downgrade_and_upgrade(
     assert revision(migrations_database) == "0004"
     assert "synthetic_households" not in tables(migrations_database)
     migrate.run(migrations_settings, "migrations", "upgrade", "head")
-    assert revision(migrations_database) == migrate.head_revision() == "0010"
+    assert revision(migrations_database) == migrate.head_revision() == "0011"
 
 
 def test_named_constraints_follow_the_convention(
