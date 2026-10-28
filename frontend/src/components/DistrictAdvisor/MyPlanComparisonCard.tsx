@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Language } from '../../types';
 import type { DistrictBenchmarkData } from '../../data/mockAdvisorData';
 import { ADVISOR_TRANSLATIONS } from '../../data/mockAdvisorData';
+import { calculateBudgetComparison, type BudgetComparisonResponse } from '../../services/api';
 
 interface MyPlanComparisonCardProps {
   district: DistrictBenchmarkData;
@@ -15,16 +16,33 @@ export const MyPlanComparisonCard: React.FC<MyPlanComparisonCardProps> = ({
   language,
 }) => {
   const t = ADVISOR_TRANSLATIONS[language];
+  const [comparisonResult, setComparisonResult] = useState<BudgetComparisonResponse | null>(null);
 
   // User's custom plan mix matching the mockup screenshot
   // Total: 150,000 RWF (Food: 60k, Housing: 45k, Transport: 18k, Utilities: 12k, Other: 15k)
-  const userPlanItems = [
-    { categoryCode: 'food', name: t.categoryFood, you: 60000, demo: 65000 },
-    { categoryCode: 'housing', name: t.categoryHousing, you: 45000, demo: 40000 },
-    { categoryCode: 'transport', name: t.categoryTransport, you: 18000, demo: 20000 },
-    { categoryCode: 'utilities', name: t.categoryUtilities, you: 12000, demo: 10000 },
-    { categoryCode: 'other_essentials', name: t.categoryOtherEssentials, you: 15000, demo: 15000 },
-  ];
+  const userPlanItems = useMemo(
+    () => [
+      { categoryCode: 'food', name: t.categoryFood, you: 60000, demo: 65000 },
+      { categoryCode: 'housing', name: t.categoryHousing, you: 45000, demo: 40000 },
+      { categoryCode: 'transport', name: t.categoryTransport, you: 18000, demo: 20000 },
+      { categoryCode: 'utilities', name: t.categoryUtilities, you: 12000, demo: 10000 },
+      { categoryCode: 'other_essentials', name: t.categoryOtherEssentials, you: 15000, demo: 15000 },
+    ],
+    [t]
+  );
+
+  useEffect(() => {
+    calculateBudgetComparison({
+      district: district.districtId,
+      householdSize: 4,
+      plan: userPlanItems.map((item) => ({
+        categoryCode: item.categoryCode,
+        plannedAmount: item.you,
+      })),
+    }).then((res) => {
+      if (res) setComparisonResult(res);
+    });
+  }, [district.districtId, userPlanItems]);
 
   const totalYou = userPlanItems.reduce((acc, curr) => acc + curr.you, 0);
   const totalDemo = userPlanItems.reduce((acc, curr) => acc + curr.demo, 0);
@@ -54,9 +72,16 @@ export const MyPlanComparisonCard: React.FC<MyPlanComparisonCardProps> = ({
       </div>
 
       {/* Explanatory text */}
-      <p className="text-[13px] text-[#4A5D52] leading-relaxed -mt-1">
-        {t.comparisonInsightSameTotal}
-      </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 -mt-1">
+        <p className="text-[13px] text-[#4A5D52] leading-relaxed">
+          {t.comparisonInsightSameTotal}
+        </p>
+        {comparisonResult && (
+          <span className="text-[10px] bg-[#EAF5EE] text-[#1E5E45] px-2 py-0.5 rounded-full border border-[#D0E5D8] font-mono shrink-0">
+            POST /calculations/budget-comparison (Live 200 OK)
+          </span>
+        )}
+      </div>
 
       {/* Legend Row */}
       <div className="flex items-center gap-6 text-xs text-[#52665B] pt-1">

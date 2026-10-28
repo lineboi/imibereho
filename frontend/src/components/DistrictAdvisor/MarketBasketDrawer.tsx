@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Language } from '../../types';
 import type { DistrictBenchmarkData } from '../../data/mockAdvisorData';
 import {
   ADVISOR_TRANSLATIONS,
   getMarketBasketItems,
 } from '../../data/mockAdvisorData';
-import { ShoppingBasket, ChevronDown, ChevronUp, MapPin } from 'lucide-react';
+import { fetchBasketDetails, type BasketDetailsResponse } from '../../services/api';
+import { ShoppingBasket, ChevronDown, ChevronUp, MapPin, Store } from 'lucide-react';
 
 interface MarketBasketDrawerProps {
   districtA: DistrictBenchmarkData;
@@ -21,6 +22,13 @@ export const MarketBasketDrawer: React.FC<MarketBasketDrawerProps> = ({
   const t = ADVISOR_TRANSLATIONS[language];
   const [isOpen, setIsOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [basketDetails, setBasketDetails] = useState<BasketDetailsResponse | null>(null);
+
+  useEffect(() => {
+    fetchBasketDetails(districtA.districtId).then((res) => {
+      if (res) setBasketDetails(res);
+    });
+  }, [districtA.districtId]);
 
   const items = getMarketBasketItems(districtA.districtId, districtB.districtId);
   const filteredItems =
@@ -62,6 +70,21 @@ export const MarketBasketDrawer: React.FC<MarketBasketDrawerProps> = ({
       {/* Expanded Content */}
       {isOpen && (
         <div className="flex flex-col gap-3 pt-3 border-t border-[#F0ECE4] animate-in fade-in duration-200">
+          {/* Live Backend Basket Summary */}
+          {basketDetails && (
+            <div className="bg-[#FAF8F4] border border-[#E8E2D6] rounded-xl p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-[#2A4D3B]">
+              <div className="flex items-center gap-2">
+                <Store className="w-3.5 h-3.5 text-[#1E5E45] shrink-0" />
+                <span>
+                  Ref. Rent: <strong>{basketDetails.referenceRentIndex.toLocaleString()} RWF</strong> · Ref. Transit: <strong>{basketDetails.referenceTransitPass.toLocaleString()} RWF</strong>
+                </span>
+              </div>
+              <span className="text-[10px] bg-[#EAF5EE] text-[#1E5E45] px-2 py-0.5 rounded-full font-mono font-medium self-start sm:self-auto shrink-0">
+                GET /districts/{districtA.districtId}/basket-details (Live 200 OK)
+              </span>
+            </div>
+          )}
+
           {/* Category Filter Chips */}
           <div className="flex items-center gap-1.5 flex-wrap pb-1">
             {['all', 'food', 'housing', 'transport', 'utilities'].map((cat) => (

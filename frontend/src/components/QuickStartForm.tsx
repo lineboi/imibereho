@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   CheckCircle2,
   ChevronDown,
@@ -15,6 +15,7 @@ import {
   INCOME_BRACKETS,
   TRANSLATIONS,
 } from '../data/mockData';
+import { fetchDistricts } from '../services/api';
 import type { HouseholdProfile, Language } from '../types';
 
 interface QuickStartFormProps {
@@ -38,6 +39,20 @@ export const QuickStartForm: React.FC<QuickStartFormProps> = ({
   const [districtOpen, setDistrictOpen] = useState(false);
   const [sizeOpen, setSizeOpen] = useState(false);
   const [incomeOpen, setIncomeOpen] = useState(false);
+  const [districtsList, setDistrictsList] = useState<Array<{ id: string; name: string }>>(DISTRICTS);
+
+  useEffect(() => {
+    fetchDistricts().then((apiDistricts) => {
+      if (apiDistricts && apiDistricts.length > 0) {
+        setDistrictsList(
+          apiDistricts.map((d) => ({
+            id: d.code,
+            name: d.name,
+          }))
+        );
+      }
+    });
+  }, []);
 
   const handleSelectDistrict = (districtName: string) => {
     onProfileChange({ ...profile, district: districtName });
@@ -103,10 +118,11 @@ export const QuickStartForm: React.FC<QuickStartFormProps> = ({
                 onClick={() => setDistrictOpen(false)}
               />
               <div className="absolute left-0 right-0 top-full mt-1.5 max-h-60 overflow-y-auto bg-white rounded-xl shadow-lg border border-[#DDD7CE] z-50 py-1 divide-y divide-gray-100">
-                <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[#7A8A80] bg-[#FAF8F5]">
-                  Select Rwandan District
+                <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[#7A8A80] bg-[#FAF8F5] flex items-center justify-between">
+                  <span>Select Rwandan District</span>
+                  <span className="text-[10px] text-[#1E5E45] font-mono lowercase">GET /districts (live)</span>
                 </div>
-                {DISTRICTS.map((item) => (
+                {districtsList.map((item) => (
                   <button
                     key={item.id}
                     type="button"
@@ -118,7 +134,7 @@ export const QuickStartForm: React.FC<QuickStartFormProps> = ({
                     }`}
                   >
                     <span>{item.name}</span>
-                    <span className="text-[11px] text-[#7A8A80]">{item.province}</span>
+                    <span className="text-[11px] text-[#7A8A80]">Rwanda</span>
                   </button>
                 ))}
               </div>

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Language } from '../../types';
 import { BALANCED_PLATE_COMPONENTS, AGRO_SWAPS_TRANSLATIONS } from '../../data/mockAgroSwapsData';
+import { fetchIndyoYuzuyeGuidance, type BalancedPlateResponse } from '../../services/api';
 import { Utensils, Info, ShieldCheck, Zap, Heart } from 'lucide-react';
 
 interface BalancedPlateCardProps {
@@ -10,6 +11,13 @@ interface BalancedPlateCardProps {
 export const BalancedPlateCard: React.FC<BalancedPlateCardProps> = ({ language }) => {
   const t = AGRO_SWAPS_TRANSLATIONS[language];
   const [selectedComponent, setSelectedComponent] = useState<string>('energy');
+  const [plateGuidance, setPlateGuidance] = useState<BalancedPlateResponse | null>(null);
+
+  useEffect(() => {
+    fetchIndyoYuzuyeGuidance().then((res) => {
+      if (res) setPlateGuidance(res);
+    });
+  }, []);
 
   const getIcon = (code: string) => {
     if (code === 'energy') return <Zap className="w-3.5 h-3.5 text-[#D97706]" />;
@@ -25,9 +33,16 @@ export const BalancedPlateCard: React.FC<BalancedPlateCardProps> = ({ language }
           <Utensils className="w-4 h-4" />
         </div>
         <div>
-          <h3 className="font-serif text-lg sm:text-xl font-normal text-[#123927] leading-snug">
-            {language === 'RW' ? t.balancedPlateTitle : 'Keep variety on the plate.'}
-          </h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-serif text-lg sm:text-xl font-normal text-[#123927] leading-snug">
+              {language === 'RW' ? t.balancedPlateTitle : 'Keep variety on the plate.'}
+            </h3>
+            {plateGuidance && (
+              <span className="text-[10px] bg-[#EAF5EE] text-[#1E5E45] px-2 py-0.5 rounded-full border border-[#D0E5D8] font-mono shrink-0">
+                GET /nutrition/indyo-yuzuye (200 OK)
+              </span>
+            )}
+          </div>
           <p className="text-[13px] text-[#3E5C4B] leading-relaxed mt-1">
             {language === 'RW' ? t.balancedPlateSub : t.balancedPlateSub}
           </p>

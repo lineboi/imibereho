@@ -11,9 +11,16 @@ import {
 import {
   fetchBudgetBenchmark,
   fetchDistrictVulnerability,
+  fetchDistrictComparison,
+  calculateStressTest,
+  fetchDistrictFinancialInclusion,
   type BudgetBenchmarkData,
   type DistrictVulnerabilityResponse,
+  type DistrictComparisonResponse,
+  type StressTestResponse,
+  type DistrictFinancialInclusionItem,
 } from '../../services/api';
+import { PolicyScenarioModal } from '../PolicyScenarioModal';
 import { SearchableDistrictSelect } from './SearchableDistrictSelect';
 import { DistrictComparisonCard } from './DistrictComparisonCard';
 import { MyPlanComparisonCard } from './MyPlanComparisonCard';
@@ -100,16 +107,22 @@ export const DistrictAdvisorPage: React.FC<DistrictAdvisorPageProps> = ({
   const [backendBenchmarkA, setBackendBenchmarkA] = useState<BudgetBenchmarkData | null>(null);
   const [backendBenchmarkB, setBackendBenchmarkB] = useState<BudgetBenchmarkData | null>(null);
   const [vulnerabilityA, setVulnerabilityA] = useState<DistrictVulnerabilityResponse | null>(null);
+  const [districtComparisonApi, setDistrictComparisonApi] = useState<DistrictComparisonResponse | null>(null);
+  const [stressTestApi, setStressTestApi] = useState<StressTestResponse | null>(null);
+  const [financialInclusionA, setFinancialInclusionA] = useState<DistrictFinancialInclusionItem | null>(null);
+  const [policyModalOpen, setPolicyModalOpen] = useState(false);
   const [isBackendLive, setIsBackendLive] = useState<boolean>(false);
 
-  // Live call to GET /api/v1/budget-benchmarks and GET /api/v1/district-vulnerability
+  // Live call to GET /api/v1/budget-benchmarks, /district-vulnerability, /calculations/district-comparison, and /nisr/financial-inclusion/districts
   useEffect(() => {
     let isMounted = true;
     Promise.all([
       fetchBudgetBenchmark(districtAId, householdSizeNumber),
       fetchBudgetBenchmark(districtBId, householdSizeNumber),
       fetchDistrictVulnerability(districtAId),
-    ]).then(([benchA, benchB, vuln]) => {
+      fetchDistrictComparison(districtAId, districtBId, householdSizeNumber),
+      fetchDistrictFinancialInclusion(),
+    ]).then(([benchA, benchB, vuln, comp, finInc]) => {
       if (!isMounted) return;
       if (benchA) {
         setBackendBenchmarkA(benchA);
@@ -117,11 +130,32 @@ export const DistrictAdvisorPage: React.FC<DistrictAdvisorPageProps> = ({
       }
       if (benchB) setBackendBenchmarkB(benchB);
       if (vuln) setVulnerabilityA(vuln);
+      if (comp) setDistrictComparisonApi(comp);
+      if (finInc?.items) {
+        const dClean = districtAId.toLowerCase();
+        const found = finInc.items.find(
+          (item) => item.districtCode.toLowerCase() === dClean || item.name.toLowerCase() === dClean
+        );
+        if (found) setFinancialInclusionA(found);
+      }
     });
     return () => {
       isMounted = false;
     };
   }, [districtAId, districtBId, householdSizeNumber]);
+
+  // Live call to POST /api/v1/calculations/stress-test
+  useEffect(() => {
+    if (stressScenario !== 'food_inflation' && stressScenario !== 'rent_surge') return;
+    let ignore = false;
+    const code = stressScenario === 'food_inflation' ? 'food_inflation_15' : 'rent_surge_10';
+    calculateStressTest(districtAId, householdSizeNumber, code).then((res) => {
+      if (!ignore && res) setStressTestApi(res);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [districtAId, householdSizeNumber, stressScenario]);
 
   // Benchmark data: seamlessly uses live backend benchmark data if available, falling back to local formulas
   const rawBaseBenchmarkA = getDistrictBenchmark(districtAId, householdSizeNumber);
@@ -214,13 +248,25 @@ export const DistrictAdvisorPage: React.FC<DistrictAdvisorPageProps> = ({
             <div className="flex flex-wrap items-center gap-2 mt-1">
               <span className="bg-[#EBF5EE] text-[#1E5E45] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#D0E5D8] flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#1E5E45] animate-pulse" />
-                <span>Backend: GET /api/v1/budget-benchmarks (Live 200 OK)</span>
+                <span>Backend: GET /budget-benchmarks & /calculations/district-comparison (200 OK)</span>
               </span>
               {vulnerabilityA && (
                 <span className="bg-[#FAF3E8] text-[#925B1D] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#E9D9C3]">
-                  {vulnerabilityA.name} Vulnerability Score: {vulnerabilityA.score}/100 ({vulnerabilityA.band})
+                  {vulnerabilityA.name} Vulnerability: {vulnerabilityA.score}/100 ({vulnerabilityA.band})
                 </span>
               )}
+              {financialInclusionA && (
+                <span className="bg-[#F0F5FA] text-[#225785] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#D0E2F0]">
+                  FinScope 2024 ({financialInclusionA.name}): Banked {financialInclusionA.bankedPct}% · Non-Bank Formal {financialInclusionA.otherFormalNonBankPct}% · Excluded {financialInclusionA.excludedPct}%
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setPolicyModalOpen(true)}
+                className="bg-[#1E5E45] hover:bg-[#164835] text-white text-[11px] font-semibold px-2.5 py-0.5 rounded-full transition-colors cursor-pointer shadow-xs"
+              >
+                Simulate Policy Transfers &rarr;
+              </button>
             </div>
           )}
         </div>
@@ -443,6 +489,7 @@ export const DistrictAdvisorPage: React.FC<DistrictAdvisorPageProps> = ({
             onScenarioChange={setStressScenario}
             language={language}
             netSavingsMonthly={benchmarkB.baselineTotal - benchmarkA.baselineTotal}
+            apiResult={(stressScenario === 'food_inflation' || stressScenario === 'rent_surge') ? stressTestApi : null}
           />
         )}
 
@@ -453,6 +500,7 @@ export const DistrictAdvisorPage: React.FC<DistrictAdvisorPageProps> = ({
             districtB={benchmarkB}
             householdSize={formattedHouseholdSize}
             language={language}
+            districtComparisonApi={districtComparisonApi}
           />
         ) : (
           <MyPlanComparisonCard
@@ -541,6 +589,13 @@ export const DistrictAdvisorPage: React.FC<DistrictAdvisorPageProps> = ({
           setSimulatorModalOpen(false);
           onTabChange('resilience');
         }}
+      />
+
+      {/* Policy Scenario Simulator Modal */}
+      <PolicyScenarioModal
+        isOpen={policyModalOpen}
+        onClose={() => setPolicyModalOpen(false)}
+        language={language}
       />
 
       {/* Mobile-Only Bottom Navigation */}

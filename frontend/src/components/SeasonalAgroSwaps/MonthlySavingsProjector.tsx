@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Language, NavTab } from '../../types';
 import type { AgroSwapItem } from '../../data/mockAgroSwapsData';
 import { AGRO_SWAPS_TRANSLATIONS } from '../../data/mockAgroSwapsData';
+import { calculateAgroSavingsProjection, type AgroSavingsProjectionResponse } from '../../services/api';
 import { Calculator, ArrowRight, Droplets, Bus, HeartPulse, CheckCircle2 } from 'lucide-react';
 
 interface MonthlySavingsProjectorProps {
@@ -18,9 +19,16 @@ export const MonthlySavingsProjector: React.FC<MonthlySavingsProjectorProps> = (
   const t = AGRO_SWAPS_TRANSLATIONS[language];
   const [mealsPerWeek, setMealsPerWeek] = useState<number>(3);
   const [loggedNotice, setLoggedNotice] = useState<boolean>(false);
+  const [apiSavings, setApiSavings] = useState<AgroSavingsProjectionResponse | null>(null);
 
-  // 4.33 weeks per average month
-  const monthlySavings = Math.round(selectedSwap.difference * mealsPerWeek * 4.33);
+  useEffect(() => {
+    calculateAgroSavingsProjection(selectedSwap.id, mealsPerWeek, 4).then((res) => {
+      if (res) setApiSavings(res);
+    });
+  }, [selectedSwap.id, mealsPerWeek]);
+
+  // 4.33 weeks per average month (uses backend if loaded)
+  const monthlySavings = apiSavings ? apiSavings.monthlyProjectedSavings : Math.round(selectedSwap.difference * mealsPerWeek * 4.33);
 
   const presets = [1, 2, 3, 5, 7];
 
@@ -108,6 +116,11 @@ export const MonthlySavingsProjector: React.FC<MonthlySavingsProjectorProps> = (
               +{monthlySavings.toLocaleString()} RWF
             </span>
             <span className="text-xs text-[#BEDCD0]">/ {language === 'RW' ? 'kwezi' : 'month'}</span>
+            {apiSavings && (
+              <span className="text-[10px] bg-[#1E5E45] text-[#A6E3C3] px-2 py-0.5 rounded border border-[#2D7354] font-mono shrink-0 ml-1">
+                Live API 200 OK
+              </span>
+            )}
           </div>
           <span className="text-[11px] text-[#A6CDBE] block mt-0.5">
             ({selectedSwap.difference.toLocaleString()} RWF {t.perMealSavings} × {mealsPerWeek}x × 4.3 wks)

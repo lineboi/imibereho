@@ -6,7 +6,13 @@ import {
   INNOVATIVE_COPING_LEVERS,
   RESILIENCE_TRANSLATIONS,
 } from '../../data/mockResilienceData';
-import { calculateHouseholdShock, type HouseholdShockResponse } from '../../services/api';
+import {
+  calculateHouseholdShock,
+  calculateResilienceSimulation,
+  fetchShocksCatalog,
+  type HouseholdShockResponse,
+  type ResilienceSimulationResponse,
+} from '../../services/api';
 import { ScenarioSetupCard } from './ScenarioSetupCard';
 import { ShockResultCard } from './ShockResultCard';
 import { BufferNotGuaranteeCard } from './BufferNotGuaranteeCard';
@@ -48,6 +54,7 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
   // Innovative Action Levers State
   const [activeLeverIds, setActiveLeverIds] = useState<string[]>([]);
   const [apiShockResult, setApiShockResult] = useState<HouseholdShockResponse | null>(null);
+  const [backendSimulationResult, setBackendSimulationResult] = useState<ResilienceSimulationResponse | null>(null);
 
   // Directly call live backend calculation endpoint: POST /api/v1/calculations/household-shock
   useEffect(() => {
@@ -68,6 +75,49 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
       ignore = true;
     };
   }, [shockType, reductionPct, durationMonths, availableSavings]);
+
+  // Load official shock catalog on mount: GET /api/v1/shocks/catalog
+  useEffect(() => {
+    fetchShocksCatalog();
+  }, []);
+
+  // Directly call live full simulation engine: POST /api/v1/calculations/resilience-simulation
+  useEffect(() => {
+    let ignore = false;
+    const validLevers = activeLeverIds.filter((id) =>
+      ['trim_non_essentials', 'seasonal_agro_swaps', 'ibimina_tontine'].includes(id)
+    );
+    const apiShockType: 'income_drop' | 'medical_emergency' | 'school_fees' =
+      shockType === 'medical_clinic'
+        ? 'medical_emergency'
+        : shockType === 'school_term'
+        ? 'school_fees'
+        : 'income_drop';
+
+    const isLump = apiShockType !== 'income_drop';
+
+    calculateResilienceSimulation({
+      baseline: {
+        monthlyIncome: baseMonthlyIncome,
+        monthlyEssentials: basePlannedExpenses,
+        savings: availableSavings,
+      },
+      shock: {
+        type: apiShockType,
+        incomeReductionPct: !isLump ? reductionPct : null,
+        durationMonths,
+        amount: isLump ? 45000 : null,
+      },
+      activeCopingLevers: validLevers,
+    }).then((res) => {
+      if (!ignore && res) {
+        setBackendSimulationResult(res);
+      }
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [shockType, reductionPct, durationMonths, availableSavings, activeLeverIds]);
 
   const handleToggleLever = (leverId: string) => {
     setActiveLeverIds((prev) =>
@@ -98,32 +148,49 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
 
   // Raw monthly gap before coping actions (BR-03)
   const rawGap =
-    shockType === 'income_drop' && apiShockResult
+    backendSimulationResult
+      ? backendSimulationResult.rawMonthlyGap
+      : shockType === 'income_drop' && apiShockResult
       ? apiShockResult.monthlyGap
       : Math.max(0, effectivePlannedExpenses - shockedIncome);
 
   // Coping relief calculations
   const activeLevers = INNOVATIVE_COPING_LEVERS.filter((l) => activeLeverIds.includes(l.id));
-  const monthlyCopingSavings = activeLevers.reduce((sum, l) => sum + l.monthlySavings, 0);
-  const lumpSumCopingBoost = activeLevers.reduce(
-    (sum, l) => sum + (l.oneTimeBufferBoost ?? 0),
-    0
-  );
+  const monthlyCopingSavings =
+    backendSimulationResult && activeLeverIds.length > 0
+      ? backendSimulationResult.copingReliefMonthly
+      : activeLevers.reduce((sum, l) => sum + l.monthlySavings, 0);
+
+  const lumpSumCopingBoost =
+    backendSimulationResult && activeLeverIds.length > 0
+      ? backendSimulationResult.lumpSumSupport
+      : activeLevers.reduce((sum, l) => sum + (l.oneTimeBufferBoost ?? 0), 0);
 
   // Net monthly gap after innovative coping actions
-  const netGap = Math.max(0, rawGap - monthlyCopingSavings);
+  const netGap =
+    backendSimulationResult
+      ? backendSimulationResult.netMonthlyGap
+      : Math.max(0, rawGap - monthlyCopingSavings);
 
   // Total available buffer (base savings + lump sum mutual aid like tontines/MoMo)
   const totalEffectiveSavings = availableSavings + lumpSumCopingBoost;
 
   // Savings drawdown over duration (BR-04/BR-05)
-  const neededDrawdown = netGap * durationMonths;
-  const savingsUsed = Math.min(totalEffectiveSavings, neededDrawdown);
-  const savingsRemain = Math.max(0, totalEffectiveSavings - savingsUsed);
+  const savingsUsed =
+    backendSimulationResult && activeLeverIds.length > 0
+      ? backendSimulationResult.savingsUsed
+      : Math.min(totalEffectiveSavings, netGap * durationMonths);
+
+  const savingsRemain =
+    backendSimulationResult && activeLeverIds.length > 0
+      ? backendSimulationResult.savingsRemaining
+      : Math.max(0, totalEffectiveSavings - savingsUsed);
 
   // Runway months (BR-06)
   const runwayMonthsStr =
-    netGap > 0
+    backendSimulationResult && backendSimulationResult.runwayMonths !== null
+      ? backendSimulationResult.runwayMonths.toFixed(0)
+      : netGap > 0
       ? (totalEffectiveSavings / netGap).toFixed(0)
       : rawGap > 0
       ? '∞ (Protected)'
@@ -131,10 +198,10 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
 
   // Resilience Health Score (0 - 100)
   const baselineScore = Math.max(45, Math.min(75, 70 - Math.round((rawGap / 2000))));
-  const activeScore = Math.min(
-    95,
-    baselineScore + activeLeverIds.length * 7 + (netGap === 0 ? 8 : 0)
-  );
+  const activeScore =
+    backendSimulationResult
+      ? backendSimulationResult.resilienceScore
+      : Math.min(95, baselineScore + activeLeverIds.length * 7 + (netGap === 0 ? 8 : 0));
 
   return (
     <div className="flex-1 flex flex-col justify-between w-full">
@@ -167,12 +234,17 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
             <span className="bg-[#E4ECE5] text-[#244E38] text-xs font-semibold px-3 py-1 rounded-full border border-[#CCE2D3]">
               {district} · {householdSize} · {language === 'RW' ? 'Urugo rw’icyitegererezo' : 'Demo household'}
             </span>
-            {apiShockResult && (
+            {backendSimulationResult ? (
+              <span className="bg-[#EBF5EE] text-[#1E5E45] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#D0E5D8] flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#1E5E45] animate-pulse" />
+                <span>Backend: POST /calculations/resilience-simulation (Score {backendSimulationResult.resilienceScore}/100)</span>
+              </span>
+            ) : apiShockResult ? (
               <span className="bg-[#EBF5EE] text-[#1E5E45] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#D0E5D8] flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#1E5E45] animate-pulse" />
                 <span>Backend: POST /api/v1/calculations/household-shock (200 OK)</span>
               </span>
-            )}
+            ) : null}
           </div>
         </div>
 

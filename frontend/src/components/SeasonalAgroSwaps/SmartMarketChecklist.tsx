@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Language } from '../../types';
 import { AGRO_SWAPS_TRANSLATIONS } from '../../data/mockAgroSwapsData';
+import { fetchShoppingChecklist, type ShoppingChecklistResponse } from '../../services/api';
 import { ShoppingBag, CheckSquare, Square, Copy, Check, Sparkles } from 'lucide-react';
 
 interface SmartMarketChecklistProps {
@@ -25,6 +26,13 @@ export const SmartMarketChecklist: React.FC<SmartMarketChecklistProps> = ({
 }) => {
   const t = AGRO_SWAPS_TRANSLATIONS[language];
   const [copied, setCopied] = useState<boolean>(false);
+  const [checklistApi, setChecklistApi] = useState<ShoppingChecklistResponse | null>(null);
+
+  useEffect(() => {
+    fetchShoppingChecklist(district, 4).then((res) => {
+      if (res) setChecklistApi(res);
+    });
+  }, [district]);
 
   const [items, setItems] = useState<ChecklistItem[]>([
     {
@@ -116,9 +124,16 @@ export const SmartMarketChecklist: React.FC<SmartMarketChecklistProps> = ({
             <ShoppingBag className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-serif text-base sm:text-lg font-normal text-[#123927]">
-              {t.smartMarketChecklistTitle}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-serif text-base sm:text-lg font-normal text-[#123927]">
+                {t.smartMarketChecklistTitle}
+              </h3>
+              {checklistApi && (
+                <span className="text-[10px] bg-[#EAF5EE] text-[#1E5E45] px-2 py-0.5 rounded-full border border-[#D0E5D8] font-mono hidden sm:inline">
+                  GET /market/shopping-checklist (200 OK)
+                </span>
+              )}
+            </div>
             <p className="text-[12px] text-[#55695D] leading-tight">
               {t.smartMarketChecklistSub}
             </p>

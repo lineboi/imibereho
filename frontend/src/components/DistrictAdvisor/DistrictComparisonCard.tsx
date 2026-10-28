@@ -2,6 +2,7 @@ import React from 'react';
 import type { Language } from '../../types';
 import type { DistrictBenchmarkData } from '../../data/mockAdvisorData';
 import { ADVISOR_TRANSLATIONS } from '../../data/mockAdvisorData';
+import type { DistrictComparisonResponse } from '../../services/api';
 import {
   ShoppingBag,
   Home,
@@ -19,6 +20,7 @@ interface DistrictComparisonCardProps {
   districtB: DistrictBenchmarkData;
   householdSize: string;
   language: Language;
+  districtComparisonApi?: DistrictComparisonResponse | null;
 }
 
 export const DistrictComparisonCard: React.FC<DistrictComparisonCardProps> = ({
@@ -26,6 +28,7 @@ export const DistrictComparisonCard: React.FC<DistrictComparisonCardProps> = ({
   districtB,
   householdSize,
   language,
+  districtComparisonApi,
 }) => {
   const t = ADVISOR_TRANSLATIONS[language];
 
@@ -82,8 +85,14 @@ export const DistrictComparisonCard: React.FC<DistrictComparisonCardProps> = ({
           <span className="bg-[#E4ECE5] text-[#244E38] text-[11px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider inline-block">
             {t.illustrativeBenchmarkBadge}
           </span>
-          <div className="text-[11.5px] text-[#697B71] font-medium mt-1.5">
-            {t.monthlyEssentialsLabel}
+          <div className="text-[11.5px] text-[#697B71] font-medium mt-1.5 flex items-center gap-2">
+            <span>{t.monthlyEssentialsLabel}</span>
+            {districtComparisonApi?.costOfLivingMultiplier && (
+              <span className="bg-[#E7F3EC] text-[#1E5E45] text-[10.5px] font-semibold px-2 py-0.5 rounded-full border border-[#CCE2D4] inline-flex items-center gap-1">
+                <span>⚡ Cost Multiplier:</span>
+                <strong>{districtComparisonApi.costOfLivingMultiplier}x (Live API)</strong>
+              </span>
+            )}
           </div>
         </div>
 

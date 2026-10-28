@@ -1,7 +1,15 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { HeroIllustration } from './HeroIllustration';
 import type { HouseholdProfile, Language } from '../types';
-import { PieChart, MapPin, Sparkles, HeartHandshake } from 'lucide-react';
+import {
+  fetchDashboardOverview,
+  fetchNationalFinancialInclusion,
+  type DashboardOverviewResponse,
+  type NationalFinancialInclusionResponse,
+} from '../services/api';
+import { PieChart, MapPin, Sparkles, HeartHandshake, Database, BookOpen, Building2 } from 'lucide-react';
+import { SourcesModal } from './SourcesModal';
+import { PolicyScenarioModal } from './PolicyScenarioModal';
 
 interface DesktopInsightCardProps {
   profile: HouseholdProfile;
@@ -12,6 +20,27 @@ export const DesktopInsightCard: React.FC<DesktopInsightCardProps> = ({
   profile,
   language,
 }) => {
+  const [dashboardData, setDashboardData] = useState<DashboardOverviewResponse | null>(null);
+  const [finScopeData, setFinScopeData] = useState<NationalFinancialInclusionResponse | null>(null);
+  const [isSourcesOpen, setIsSourcesOpen] = useState(false);
+  const [isPolicyOpen, setIsPolicyOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    fetchDashboardOverview().then((res) => {
+      if (active && res) setDashboardData(res);
+    });
+
+    fetchNationalFinancialInclusion().then((res) => {
+      if (active && res) setFinScopeData(res);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const numericIncome = parseInt(profile.monthlyIncome.replace(/[^0-9]/g, ''), 10) || 180000;
   const householdCount = parseInt(profile.householdSize, 10) || 4;
   
@@ -104,6 +133,66 @@ export const DesktopInsightCard: React.FC<DesktopInsightCardProps> = ({
           </div>
         </div>
 
+        {/* Live Macro Statistics from Backend */}
+        <div className="bg-[#FAFDFB] rounded-xl p-3 border border-[#D5E7DC] flex flex-col gap-2 text-xs">
+          <div className="flex items-center justify-between text-[#1E5E45]">
+            <span className="font-semibold flex items-center gap-1.5">
+              <Database className="w-3.5 h-3.5" />
+              <span>NISR / FinScope Macro Lens</span>
+            </span>
+            <span className="text-[10px] bg-[#EAF5EE] px-2 py-0.5 rounded-full font-mono text-[#1E5E45] font-semibold">
+              Live NISR APIs
+            </span>
+          </div>
+
+          {dashboardData && (
+            <div className="flex items-center justify-between text-[11px] text-[#4F6356] border-b border-[#E3EFE7] pb-1.5">
+              <span>EICV7 Sample: <strong>{dashboardData.kpis.sampleSize.toLocaleString()} households</strong></span>
+              <span>Essential Ratio: <strong>{((dashboardData.kpis.essentialsToIncomeRatio ?? 0.833) * 100).toFixed(0)}%</strong></span>
+            </div>
+          )}
+
+          {/* FinScope 2024 Key Macro Indicators */}
+          {finScopeData && (
+            <div className="grid grid-cols-2 gap-2 text-[11px] pt-0.5">
+              <div className="bg-white p-2 rounded-lg border border-[#DCEEE3]">
+                <span className="text-[#657A6C] block text-[10px]">Financially Included:</span>
+                <strong className="text-[#154634] text-xs">
+                  {finScopeData.indicators.find((i) => i.code === 'financially_included')?.valuePct ?? 96}%
+                </strong>
+                <span className="text-[9.5px] text-[#718578] block">FinScope 2024</span>
+              </div>
+              <div className="bg-white p-2 rounded-lg border border-[#DCEEE3]">
+                <span className="text-[#657A6C] block text-[10px]">Formal Banked:</span>
+                <strong className="text-[#154634] text-xs">
+                  {finScopeData.indicators.find((i) => i.code === 'banked')?.valuePct ?? 27}%
+                </strong>
+                <span className="text-[9.5px] text-[#718578] block">Commercial/SACCO</span>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Action Buttons for Sources and Policy Simulator */}
+          <div className="pt-1 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setIsSourcesOpen(true)}
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-white hover:bg-[#F2F8F4] text-[#1E5E45] border border-[#CDE5D6] rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Official Sources</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsPolicyOpen(true)}
+              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-[#1E5E45] hover:bg-[#164835] text-white rounded-lg text-[11px] font-semibold transition-colors cursor-pointer shadow-xs"
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Policy Scenario</span>
+            </button>
+          </div>
+        </div>
+
         {/* Household Financial Guidance Tip */}
         <div className="bg-[#FAF8F3] rounded-xl p-3 border border-[#EBE6DB] flex items-start gap-2.5 text-[11px] text-[#63756A] leading-relaxed">
           <HeartHandshake className="w-4 h-4 text-[#205A44] shrink-0 mt-0.5" />
@@ -114,6 +203,18 @@ export const DesktopInsightCard: React.FC<DesktopInsightCardProps> = ({
           </span>
         </div>
       </div>
+
+      {/* Modals */}
+      <SourcesModal
+        isOpen={isSourcesOpen}
+        onClose={() => setIsSourcesOpen(false)}
+        language={language}
+      />
+      <PolicyScenarioModal
+        isOpen={isPolicyOpen}
+        onClose={() => setIsPolicyOpen(false)}
+        language={language}
+      />
     </div>
   );
 };
