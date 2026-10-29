@@ -6,6 +6,14 @@ The platform bridges micro-level citizen financial management with macro-level p
 
 ---
 
+## 🌐 Live Public Deployment
+
+- **Production URL**: [https://frontend-cyan-pi-36.vercel.app](https://frontend-cyan-pi-36.vercel.app)
+- **Direct Tunnel Fallback**: [https://bike-talking-requested-ascii.trycloudflare.com](https://bike-talking-requested-ascii.trycloudflare.com)
+- **API Readiness Check**: [https://frontend-cyan-pi-36.vercel.app/ready](https://frontend-cyan-pi-36.vercel.app/ready)
+
+---
+
 ## Hardcoded Presentation & Testing Credentials
 
 For evaluators, juries, and presentation demonstrations, two hardcoded accounts are pre-seeded in the live PostgreSQL database:
