@@ -102,20 +102,22 @@ class ChecklistItem(ApiModel):
     est_price: int
 
 
-ChecklistBasis = Literal["pdf_example", "modelled_from_pdf_example"]
+# pdf_example: MISSING_APIS.pdf values; modelled_from_pdf_example: a BR-24 or BR-28 model of them.
+ValueBasis = Literal["pdf_example", "modelled_from_pdf_example"]
 
 
 class ShoppingChecklistResponse(ApiModel):
     status: DataStatus
-    value_basis: ChecklistBasis | None = Field(
-        description="pdf_example: the MISSING_APIS.pdf figures as given (household size 4); "
-        "modelled_from_pdf_example: those figures scaled by BR-24 (√(householdSize ÷ 4)), a "
-        "model output, not a market observation; null when status is awaiting_validated_data"
+    value_basis: ValueBasis | None = Field(
+        description="pdf_example: the MISSING_APIS.pdf items (Gasabo, household size 4); "
+        "modelled_from_pdf_example: those items scaled to the district by its food line (BR-28) "
+        "and to the household by √(householdSize ÷ 4) (BR-24), a model output, not a market "
+        "observation; null when status is awaiting_validated_data"
     )
     district: str
     items: list[ChecklistItem]
-    total_estimated_basket: int | None
+    total_estimated_basket: int | None = Field(description="The sum of the items' estPrice")
     unoptimized_basket: int | None
-    estimated_savings: int | None
+    estimated_savings: int | None = Field(description="unoptimizedBasket − totalEstimatedBasket")
     assumptions: list[str]
     meta: ExampleMeta

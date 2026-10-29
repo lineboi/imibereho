@@ -43,8 +43,10 @@ APPROVED_TABLES: Final = frozenset(
         "survey_estimates",
     }
 )
-# Personal data, added at the project owner's direction on 2026-10-28 (contract §11.8): one table.
-ACCOUNT_TABLES: Final = frozenset({"household_accounts", "tracker_transactions"})
+# Personal data, added at the project owner's direction on 2026-10-28 (contract §11.8 to §11.11).
+ACCOUNT_TABLES: Final = frozenset(
+    {"household_accounts", "tracker_transactions", "resilience_plans"}
+)
 # Matched against whole `_`-separated tokens, so `footnote` or a district `name` do not match.
 PERSONAL_TOKENS: Final = frozenset(
     {
@@ -114,6 +116,27 @@ def test_the_tracker_table_holds_only_the_reviewed_columns() -> None:
     (foreign_key,) = Base.metadata.tables["tracker_transactions"].foreign_keys
     assert foreign_key.column.table.name == "household_accounts"
     assert foreign_key.ondelete == "CASCADE"
+
+
+# Contract §11.11 (migration 0012): the inputs of the household's saved resilience simulation.
+# Financial figures and choices from a fixed catalogue; no free text.
+RESILIENCE_PLAN_COLUMNS: Final = frozenset(
+    {
+        "account_id", "monthly_income", "monthly_essentials", "savings", "shock_type",
+        "income_reduction_pct", "duration_months", "shock_amount", "coping_levers", "created_at",
+        "updated_at",
+    }
+)  # fmt: skip
+
+
+def test_the_resilience_plan_table_holds_only_the_reviewed_columns() -> None:
+    table = Base.metadata.tables["resilience_plans"]
+    assert {column.name for column in table.columns} == RESILIENCE_PLAN_COLUMNS
+    # One plan per account, deleted with it.
+    (foreign_key,) = table.foreign_keys
+    assert foreign_key.column.table.name == "household_accounts"
+    assert foreign_key.ondelete == "CASCADE"
+    assert [column.name for column in table.primary_key] == ["account_id"]
 
 
 def test_the_account_table_holds_only_the_reviewed_columns() -> None:

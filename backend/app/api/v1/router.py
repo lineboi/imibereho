@@ -13,6 +13,7 @@ from app.api.v1.endpoints import (
     policy_scenarios,
     profile,
     resilience,
+    resilience_plan,
     seasonal_swaps,
     shocks,
     tracker,
@@ -35,5 +36,6 @@ for module in (
     auth,
     profile,
     tracker,
+    resilience_plan,
 ):
     router.include_router(module.router)

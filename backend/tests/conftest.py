@@ -7,16 +7,22 @@ Two kinds of tests:
   in order (plan §2.2): resolve TEST_DATABASE_URL and run the `test` guard, migrate to head through
   `app.db.migrate`, seed every dataset, then run the seed check. A missing variable or a guard
   refusal stops the run with exit code 2; it never skips silently.
+- Every DB test (the migrations round trip included) first takes `exclusive_db_run`: a
+  PostgreSQL advisory lock held on the test database for the whole session. Two pytest runs at
+  once would otherwise delete each other's accounts, reseed or downgrade under each other; the
+  second run waits for the first instead (and stops with exit code 2 after the wait limit).
 
 Run only the DB-free tests with `uv run pytest -m "not db"`.
 """
 
+import time
 from collections.abc import Iterator
 from typing import Final
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from app.core.config import InvalidSettingsError, MissingSettingError, Settings, load_settings
 from app.db import migrate
@@ -28,7 +34,12 @@ from app.main import create_app
 STUB_TEST_URL: Final = (
     "postgresql+psycopg://imibereho:not-a-real-password@localhost:5432/imibereho_test"
 )
-DB_FIXTURES: Final = frozenset({"db_settings", "test_database", "db_client", "db_app"})
+DB_FIXTURES: Final = frozenset(
+    {"db_settings", "exclusive_db_run", "test_database", "db_client", "db_app"}
+)
+# Any fixed 64-bit key, unique to this suite: one pytest session at a time holds it.
+DB_RUN_LOCK_KEY: Final = 0x1B1BE7E0_7E57
+DB_RUN_LOCK_WAIT_SECONDS: Final = 900
 
 
 def make_settings(**overrides: object) -> Settings:
@@ -86,7 +97,44 @@ def db_settings() -> Settings:
 
 
 @pytest.fixture(scope="session")
-def test_database(db_settings: Settings) -> Iterator[Database]:
+def exclusive_db_run(db_settings: Settings) -> Iterator[None]:
+    """Hold the suite's advisory lock for the session, so DB test runs never overlap.
+
+    A session-level lock on its own connection: it lasts until the session ends and PostgreSQL
+    releases it if the process dies, so a crashed run never leaves it held.
+    """
+    try:
+        database = Database.for_target(db_settings, "test")
+    except UnsafeDatabaseTargetError as exc:
+        _exit(str(exc))
+        raise
+    connection = database.engine.connect()
+    lock = text("SELECT pg_try_advisory_lock(:key)").bindparams(key=DB_RUN_LOCK_KEY)
+    deadline = time.monotonic() + DB_RUN_LOCK_WAIT_SECONDS
+    waiting = False
+    while not connection.execute(lock).scalar():
+        connection.commit()
+        if time.monotonic() > deadline:
+            connection.close()
+            database.dispose()
+            _exit(f"another test run held the database lock for {DB_RUN_LOCK_WAIT_SECONDS} s")
+        if not waiting:
+            print("\n[tests] another test run is using the test databases; waiting for it")
+            waiting = True
+        time.sleep(2)
+    connection.commit()
+    try:
+        yield
+    finally:
+        unlock = text("SELECT pg_advisory_unlock(:key)").bindparams(key=DB_RUN_LOCK_KEY)
+        connection.execute(unlock)
+        connection.commit()
+        connection.close()
+        database.dispose()
+
+
+@pytest.fixture(scope="session")
+def test_database(db_settings: Settings, exclusive_db_run: None) -> Iterator[Database]:
     try:
         database = Database.for_target(db_settings, "test")
         migrate.run(db_settings, "test", "upgrade", "head")

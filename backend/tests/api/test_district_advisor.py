@@ -180,8 +180,14 @@ def test_comparison_household_size_must_be_digits(db_client: TestClient, raw: st
 
 
 RENT_AND_TRANSIT: Final = "rent_and_transit_are_the_basket_housing_and_transport_lines"
-NO_STAPLES: Final = "no_staple_prices_or_market_hub_in_the_pdf_for_this_district"
-NULL_STAPLES: Final = dict.fromkeys(("irishPotatoesPerKg", "sweetPotatoesPerKg", "redBeansPerKg"))
+MODELLED_STAPLES: Final = "staple_prices_modelled_br_28_from_gasabo_by_the_food_line_not_observed"
+NO_MARKET_HUB: Final = "no_market_hub_is_known_for_this_district"
+GASABO_STAPLES: Final = {
+    "irishPotatoesPerKg": 750, "sweetPotatoesPerKg": 800, "redBeansPerKg": 850,
+}  # fmt: skip
+MUSANZE_STAPLES: Final = {
+    "irishPotatoesPerKg": 577, "sweetPotatoesPerKg": 615, "redBeansPerKg": 654,
+}  # fmt: skip
 
 
 def test_basket_details_pdf_example(db_client: TestClient) -> None:
@@ -190,6 +196,7 @@ def test_basket_details_pdf_example(db_client: TestClient) -> None:
     data = raw_json(response)
     assert data == {
         "status": "available",
+        "valueBasis": "pdf_example",
         "districtCode": "gasabo",
         "householdSize": 4,
         "referenceRentIndex": 40_000,
@@ -206,43 +213,58 @@ def test_basket_details_pdf_example(db_client: TestClient) -> None:
         assert_number(value, value, integer=True)
 
 
-def test_basket_details_musanze_has_no_staples_in_the_pdf(db_client: TestClient) -> None:
+def test_basket_details_musanze_staples_are_modelled_by_its_food_line(
+    db_client: TestClient,
+) -> None:
+    """BR-28: Gasabo's prices × 50,000 ÷ 65,000 (the two PDF food lines), half up."""
     data = raw_json(db_client.get(BASKET.format(code="musanze")))
-    assert data["status"] == "awaiting_validated_data"
+    assert data["status"] == "available" and data["valueBasis"] == "modelled_from_pdf_example"
     assert (data["referenceRentIndex"], data["referenceTransitPass"]) == (28_000, 14_000)
-    assert data["staplePriceIndex"] == NULL_STAPLES and data["primaryMarketHub"] is None
-    assert data["unavailableFields"] == ["staplePriceIndex", "primaryMarketHub"]
-    assert data["assumptions"] == [EXAMPLE, NOT_OBSERVED, NO_STAPLES, RENT_AND_TRANSIT]
+    assert data["staplePriceIndex"] == MUSANZE_STAPLES
+    assert data["primaryMarketHub"] is None
+    assert data["unavailableFields"] == ["primaryMarketHub"]
+    assert data["assumptions"] == [
+        EXAMPLE, NOT_OBSERVED, MODELLED_STAPLES, NO_MARKET_HUB, RENT_AND_TRANSIT,
+    ]  # fmt: skip
     assert data["meta"] == EXAMPLE_META
 
 
 def test_basket_details_elsewhere(db_client: TestClient) -> None:
+    """A benchmark district's food line equals Gasabo's, so BR-28 gives Gasabo's prices."""
     response = db_client.get(BASKET.format(code="huye"))
     data = raw_json(response)
-    assert data["status"] == "awaiting_validated_data"
+    assert data["status"] == "available" and data["valueBasis"] == "modelled_from_pdf_example"
     assert (data["referenceRentIndex"], data["referenceTransitPass"]) == (40_000, 20_000)
-    assert data["staplePriceIndex"] == NULL_STAPLES
-    assert data["unavailableFields"] == ["staplePriceIndex", "primaryMarketHub"]
-    assert data["assumptions"] == [UNIFORM, NOT_OBSERVED, NO_STAPLES, RENT_AND_TRANSIT]
-    assert data["meta"] == NO_EXAMPLE_META
+    assert data["staplePriceIndex"] == GASABO_STAPLES
+    assert data["unavailableFields"] == ["primaryMarketHub"]
+    assert data["assumptions"] == [
+        UNIFORM, NOT_OBSERVED, MODELLED_STAPLES, NO_MARKET_HUB, RENT_AND_TRANSIT,
+    ]  # fmt: skip
+    # The staple prices derive from the PDF example, so the provenance is set.
+    assert data["meta"] == EXAMPLE_META
     assert '"primaryMarketHub":null' in response.text
 
 
-def test_only_gasabo_has_staple_prices_and_a_market_hub(db_client: TestClient) -> None:
-    """Every other district is explicitly awaiting data, with nulls (never 0) and no invention."""
+def test_every_district_has_staple_prices_and_only_gasabo_a_market_hub(
+    db_client: TestClient,
+) -> None:
+    """All 30 districts are available; no market hub is invented (null, never a guess)."""
     codes = [d["code"] for d in raw_json(db_client.get("/api/v1/districts"))["items"]]
     assert len(codes) == 30
     for code in codes:
         data = raw_json(db_client.get(BASKET.format(code=code)))
+        assert data["status"] == "available", code
+        prices = data["staplePriceIndex"]
+        assert all(isinstance(value, int) and value > 0 for value in prices.values()), code
+        assert data["meta"] == EXAMPLE_META
         if code == "gasabo":
-            assert data["status"] == "available" and data["unavailableFields"] == []
+            assert data["valueBasis"] == "pdf_example" and data["unavailableFields"] == []
             continue
-        assert data["status"] == "awaiting_validated_data", code
-        assert data["staplePriceIndex"] == NULL_STAPLES and data["primaryMarketHub"] is None
-        assert data["unavailableFields"] == ["staplePriceIndex", "primaryMarketHub"]
-        assert data["meta"]["isIllustrative"] is True
-        assert data["meta"]["provenance"] == (EXAMPLE_META["provenance"] if code == "musanze"
-                                              else None)  # fmt: skip
+        assert data["valueBasis"] == "modelled_from_pdf_example", code
+        assert data["primaryMarketHub"] is None
+        assert data["unavailableFields"] == ["primaryMarketHub"]
+        expected = MUSANZE_STAPLES if code == "musanze" else GASABO_STAPLES
+        assert prices == expected, code
 
 
 def test_basket_details_errors(db_client: TestClient) -> None:

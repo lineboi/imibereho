@@ -2,7 +2,7 @@
 
 Field and query names follow the PDF, including its snake_case query parameters for
 `district-comparison`. Additions: `meta`, `assumptions`, `householdSize` where the basket size is
-implicit, and `status` and `unavailableFields` on the basket drawer.
+implicit, and `status`, `valueBasis` and `unavailableFields` on the basket drawer.
 
 Every amount is illustrative: the MISSING_APIS.pdf example baskets for Gasabo and Musanze
 (owner-approved; `meta.provenance` says so) or the one benchmark basket shared by every other
@@ -14,7 +14,7 @@ from typing import Annotated, Literal
 from pydantic import Field, StrictInt
 
 from app.core.constants import HOUSEHOLD_SIZE_MAX, HOUSEHOLD_SIZE_MIN
-from app.schemas.agro import DataStatus
+from app.schemas.agro import DataStatus, ValueBasis
 from app.schemas.benchmark import DistrictCodeParam
 from app.schemas.common import (
     ApiModel,
@@ -105,15 +105,21 @@ class StaplePriceIndex(ApiModel):
 
 class BasketDetailsResponse(ApiModel):
     status: DataStatus = Field(
-        description="awaiting_validated_data when any field in unavailableFields has no approved "
-        "or sourced value (it is null, never 0); available when every field has a value"
+        description="available when the basket and staple prices have values (every district "
+        "since contract v0.8); awaiting_validated_data is kept for districts without them"
+    )
+    value_basis: ValueBasis = Field(
+        description="pdf_example: Gasabo's staple prices as the PDF gives them; "
+        "modelled_from_pdf_example: Gasabo's prices scaled by the district's food line (BR-28)"
     )
     district_code: str
     household_size: int
     reference_rent_index: int = Field(description="The illustrative basket's housing line")
     reference_transit_pass: int = Field(description="The illustrative basket's transport line")
     staple_price_index: StaplePriceIndex
-    primary_market_hub: str | None
-    unavailable_fields: list[str]
+    primary_market_hub: str | None = Field(
+        description="The PDF's market for Gasabo; null for every other district (none is sourced)"
+    )
+    unavailable_fields: list[str] = Field(description="Fields that are null for lack of data")
     assumptions: list[str]
     meta: ExampleMeta
