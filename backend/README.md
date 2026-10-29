@@ -56,7 +56,9 @@ current-account dependency (`app/services/current_account.py`) protects `GET` an
 `PATCH /api/v1/user/profile` (contract v0.6 §11.9), every `/api/v1/tracker/*` route (v0.7
 §11.10) and `/api/v1/user/resilience-plan` (v0.8 §11.11), the only routes that require a token. There is no pagination (contract §1: lists hold ≤ 30 items).
 
-Errors are RFC 9457 `application/problem+json` (contract §1.3). Every response carries
+Request bodies are capped at `MAX_REQUEST_BODY_BYTES` (default 65,536 bytes; 413
+`request-too-large`, checked before parsing, chunked bodies included). Errors are RFC 9457
+`application/problem+json` (contract §1.3). Every response carries
 `X-Request-ID` (a safe client-supplied value is echoed back) and `Content-Language: en`.
 
 ## Layout
