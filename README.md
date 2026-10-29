@@ -8,9 +8,9 @@ The platform bridges micro-level citizen financial management with macro-level p
 
 ## 🌐 Live Public Deployment
 
-- **Production URL**: [https://frontend-cyan-pi-36.vercel.app](https://frontend-cyan-pi-36.vercel.app)
+- **Production URL**: [https://imibereho.vercel.app](https://imibereho.vercel.app)
 - **Direct Tunnel Fallback**: [https://bike-talking-requested-ascii.trycloudflare.com](https://bike-talking-requested-ascii.trycloudflare.com)
-- **API Readiness Check**: [https://frontend-cyan-pi-36.vercel.app/ready](https://frontend-cyan-pi-36.vercel.app/ready)
+- **API Readiness Check**: [https://imibereho.vercel.app/ready](https://imibereho.vercel.app/ready)
 
 ---
 
