@@ -39,6 +39,11 @@ def _language(value: str) -> PreferredLanguage:
     return cast(PreferredLanguage, value)
 
 
+def _role(value: str) -> Literal["citizen", "decision_maker"]:
+    # The column's CHECK constraint allows only these two (migration 0013).
+    return cast(Literal["citizen", "decision_maker"], value)
+
+
 def profile_of(account: CurrentAccount) -> ProfileResponse:
     return ProfileResponse(
         id=account.id,
@@ -48,7 +53,7 @@ def profile_of(account: CurrentAccount) -> ProfileResponse:
         planned_essentials=account.planned_essentials,
         savings_buffer=account.savings_buffer,
         preferred_language=_language(account.preferred_language),
-        role=cast(Literal["citizen", "decision_maker"], getattr(account, "role", "citizen") or "citizen"),
+        role=_role(account.role),
     )
 
 
@@ -61,7 +66,7 @@ def _profile_of_row(row: HouseholdAccount) -> ProfileResponse:
         planned_essentials=row.planned_essentials,
         savings_buffer=row.savings_buffer,
         preferred_language=_language(row.preferred_language),
-        role=cast(Literal["citizen", "decision_maker"], getattr(row, "role", "citizen") or "citizen"),
+        role=_role(row.role),
     )
 
 
