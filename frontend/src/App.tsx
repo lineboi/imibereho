@@ -1,31 +1,91 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { HeroIllustration } from './components/HeroIllustration';
 import { QuickStartForm } from './components/QuickStartForm';
 import { DesktopInsightCard } from './components/DesktopInsightCard';
 import { PayloadModal } from './components/PayloadModal';
+import { ProfileModal } from './components/ProfileModal';
 import { DailyTrackerPage } from './components/DailyTracker/DailyTrackerPage';
 import { DistrictAdvisorPage } from './components/DistrictAdvisor/DistrictAdvisorPage';
 import { ResilienceSimulatorPage } from './components/ResilienceSimulator/ResilienceSimulatorPage';
 import { SeasonalAgroSwapsPage } from './components/SeasonalAgroSwaps/SeasonalAgroSwapsPage';
+import { DecisionMakerPage } from './components/DecisionMaker/DecisionMakerPage';
 import { INITIAL_PROFILE, TRANSLATIONS } from './data/mockData';
+import { fetchUserProfile, getStoredToken, setStoredToken, setStoredUser } from './services/api';
 import type { HouseholdProfile, Language, AppPage, NavTab } from './types';
-import { Check, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
+
+const GWIZA_DEFAULT_TOKEN =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c3JfMDFNNjI4WlE1S0FQUFdQTkNaUVpHVzFLSzYiLCJpYXQiOjE3OTMyMjUzODMsImV4cCI6MTc5MzMxMTc4M30.hT7UiMSwKPtS51vMg0Rhpx8RPN2KYcB_kw2RNI5bIOw';
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<AppPage>('tracker');
   const [activeTab, setActiveTab] = useState<NavTab>('agro_swaps');
   const [language, setLanguage] = useState<Language>('EN');
-  const [profile, setProfile] = useState<HouseholdProfile>(INITIAL_PROFILE);
+  const [profile, setProfile] = useState<HouseholdProfile>(() => {
+    try {
+      const saved = localStorage.getItem('imibereho_profile');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return INITIAL_PROFILE;
+  });
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'continue' | 'create_account' | 'sign_in'>('continue');
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  // Sync profile from backend on app startup if authenticated (or auto-bootstrap Gwiza Moise session)
+  useEffect(() => {
+    let token = getStoredToken();
+    if (!token) {
+      setStoredToken(GWIZA_DEFAULT_TOKEN);
+      setStoredUser({
+        id: 'usr_01M628ZQ5KAPPWPNCZQZGW1KK6',
+        identifier: 'gwiza.moise@gmail.com',
+        district: 'gasabo',
+        householdSize: 4,
+      });
+      token = GWIZA_DEFAULT_TOKEN;
+    }
+
+    if (token) {
+      fetchUserProfile(token).then((res) => {
+        if (res) {
+          const capDistrict = res.district.charAt(0).toUpperCase() + res.district.slice(1);
+          setProfile((prev) => ({
+            ...prev,
+            id: res.id,
+            district: capDistrict,
+            householdSize: `${res.householdSize} people`,
+            monthlyIncome: `${res.monthlyIncome.toLocaleString()} RWF`,
+            plannedEssentials: res.plannedEssentials,
+            savingsBuffer: res.savingsBuffer,
+            preferredLanguage: res.preferredLanguage,
+            role: res.role || 'citizen',
+          }));
+          if (res.preferredLanguage) {
+            setLanguage(res.preferredLanguage);
+          }
+        }
+      });
+    }
+  }, []);
+
+  const handleProfileSaved = (updated: HouseholdProfile) => {
+    setProfile(updated);
+    try {
+      localStorage.setItem('imibereho_profile', JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+  };
 
   const t = TRANSLATIONS[language];
 
   const handleContinue = (submittedProfile: HouseholdProfile) => {
     setProfile(submittedProfile);
-    setModalMode('continue');
-    setModalOpen(true);
+    setCurrentPage('tracker');
   };
 
   const handleCreateAccount = (submittedProfile: HouseholdProfile) => {
@@ -40,6 +100,29 @@ export function App() {
     setModalOpen(true);
   };
 
+  // If user role is decision_maker, automatically present Decision-Maker Workspace
+  if (profile.role === 'decision_maker') {
+    return (
+      <div className="min-h-screen bg-[#FAF8F4] text-stone-900 font-sans">
+        <DecisionMakerPage
+          onOpenProfile={() => setProfileOpen(true)}
+        />
+        <ProfileModal
+          isOpen={profileOpen}
+          onClose={() => setProfileOpen(false)}
+          profile={profile}
+          onProfileSaved={handleProfileSaved}
+          language={language}
+          onLanguageChange={setLanguage}
+          onOpenAuthModal={(mode) => {
+            setModalMode(mode);
+            setModalOpen(true);
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8F6F0] text-[#1E2922] flex flex-col font-sans selection:bg-[#1E5E45] selection:text-white">
       {/* Single Main Navigation Header */}
@@ -52,6 +135,8 @@ export function App() {
           setCurrentPage('tracker');
         }}
         onLogoClick={() => setCurrentPage('landing')}
+        onOpenProfile={() => setProfileOpen(true)}
+        profileDistrict={profile.district}
       />
 
       {/* Conditionally Render Pages */}
@@ -62,6 +147,7 @@ export function App() {
             onNavigateHome={() => setCurrentPage('landing')}
             defaultDistrict={profile.district}
             defaultHouseholdSize={profile.householdSize}
+            monthlyIncome={profile.monthlyIncome}
             activeTab={activeTab}
             onTabChange={setActiveTab}
           />
@@ -71,6 +157,9 @@ export function App() {
             onNavigateHome={() => setCurrentPage('landing')}
             district={profile.district}
             householdSize={profile.householdSize}
+            monthlyIncome={profile.monthlyIncome}
+            plannedEssentials={profile.plannedEssentials}
+            savingsBuffer={profile.savingsBuffer}
             activeTab={activeTab}
             onTabChange={setActiveTab}
           />
@@ -88,6 +177,7 @@ export function App() {
             onNavigateHome={() => setCurrentPage('landing')}
             district={profile.district}
             householdSize={profile.householdSize}
+            monthlyIncome={profile.monthlyIncome}
             activeTab={activeTab}
             onTabChange={setActiveTab}
           />
@@ -161,21 +251,55 @@ export function App() {
         profile={profile}
         language={language}
         mode={modalMode}
-        onProceedToTracker={() => setCurrentPage('tracker')}
+        onProceedToTracker={() => {
+          setModalOpen(false);
+          const tkn = getStoredToken();
+          if (tkn) {
+            fetchUserProfile(tkn).then((res) => {
+              if (res) {
+                const capDistrict = res.district.charAt(0).toUpperCase() + res.district.slice(1);
+                setProfile((prev) => ({
+                  ...prev,
+                  id: res.id,
+                  district: capDistrict,
+                  householdSize: `${res.householdSize} people`,
+                  monthlyIncome: `${res.monthlyIncome.toLocaleString()} RWF`,
+                  plannedEssentials: res.plannedEssentials,
+                  savingsBuffer: res.savingsBuffer,
+                  preferredLanguage: res.preferredLanguage,
+                  role: res.role || 'citizen',
+                }));
+                if (res.preferredLanguage) {
+                  setLanguage(res.preferredLanguage);
+                }
+              }
+            });
+          }
+          setCurrentPage('tracker');
+        }}
+      />
+
+      {/* Household Profile Modal */}
+      <ProfileModal
+        isOpen={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        profile={profile}
+        onProfileSaved={handleProfileSaved}
+        language={language}
+        onLanguageChange={setLanguage}
+        onOpenAuthModal={(mode) => {
+          setModalMode(mode);
+          setModalOpen(true);
+        }}
       />
 
       {/* Bottom Global Subtle Footer (When on Landing Page) */}
       {currentPage === 'landing' && (
         <footer className="border-t border-[#EAE5DB] bg-[#F2EDE3]/60 py-3.5 px-4 text-center text-xs text-[#7A8A81] mt-auto">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-            <span>Imibereho Project · Prototype Demo</span>
+            <span>Imibereho · Rwanda Household Financial Resilience</span>
             <div className="flex items-center gap-3 text-[11px] text-[#55695E]">
-              <span className="flex items-center gap-1">
-                <Check className="w-3 h-3 text-[#1E5E45]" />
-                <span>Frontend Mock Objects Active</span>
-              </span>
-              <span>·</span>
-              <span>Endpoints Ready to Connect</span>
+              <span>Grounded in Official Statistics & Living Standards</span>
             </div>
           </div>
         </footer>

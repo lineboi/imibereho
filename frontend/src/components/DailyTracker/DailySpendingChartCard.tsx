@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import type { Language } from '../../types';
 import { TRACKER_TRANSLATIONS } from '../../data/mockTrackerData';
-import { BarChart2, TrendingUp, CheckCircle2 } from 'lucide-react';
+import type { TrackerBurnRateResponse, TrackerDailyTrendPoint } from '../../services/api';
+import { BarChart2, TrendingUp, CheckCircle2, Zap } from 'lucide-react';
 
 interface DailySpendingChartCardProps {
   language: Language;
   idealDailyLimit?: number;
   todaySpent: number;
+  dailyTrendPoints?: TrackerDailyTrendPoint[];
+  burnRate?: TrackerBurnRateResponse | null;
 }
 
 interface DaySpending {
@@ -20,25 +23,44 @@ export const DailySpendingChartCard: React.FC<DailySpendingChartCardProps> = ({
   language,
   idealDailyLimit = 5000,
   todaySpent,
+  dailyTrendPoints,
+  burnRate,
 }) => {
   const t = TRACKER_TRANSLATIONS[language];
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  // 7-day spending dataset ending with today (25 October)
-  const daysData: DaySpending[] = [
-    { dayLabel: language === 'RW' ? '19 Ukw' : '19 Oct', dateStr: language === 'RW' ? '19 Ukwakira' : '19 October', amount: 4200 },
-    { dayLabel: language === 'RW' ? '20 Ukw' : '20 Oct', dateStr: language === 'RW' ? '20 Ukwakira' : '20 October', amount: 5100 },
-    { dayLabel: language === 'RW' ? '21 Ukw' : '21 Oct', dateStr: language === 'RW' ? '21 Ukwakira' : '21 October', amount: 3800 },
-    { dayLabel: language === 'RW' ? '22 Ukw' : '22 Oct', dateStr: language === 'RW' ? '22 Ukwakira' : '22 October', amount: 4900 },
-    { dayLabel: language === 'RW' ? '23 Ukw' : '23 Oct', dateStr: language === 'RW' ? '23 Ukwakira' : '23 October', amount: 7200 },
-    { dayLabel: language === 'RW' ? '24 Ukw' : '24 Oct', dateStr: language === 'RW' ? '24 Ukwakira' : '24 October', amount: 4500 },
-    {
-      dayLabel: language === 'RW' ? 'Uyu munsi' : 'Today',
-      dateStr: language === 'RW' ? '25 Ukwakira' : '25 October',
-      amount: todaySpent,
-      isToday: true,
-    },
-  ];
+  // Generate the past 7 days strictly from database dailyTrendPoints (0 if no spend recorded)
+  const today = new Date();
+  const daysData: DaySpending[] = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (6 - i));
+    const isoDate = d.toISOString().slice(0, 10);
+    const isToday = i === 6;
+    const dayNum = d.getDate();
+    const monthShort = new Intl.DateTimeFormat(language === 'RW' ? 'rw-RW' : 'en-US', { month: 'short' }).format(d);
+    const monthLong = new Intl.DateTimeFormat(language === 'RW' ? 'rw-RW' : 'en-US', { month: 'long' }).format(d);
+    const dayLabel = isToday
+      ? language === 'RW'
+        ? 'Uyu munsi'
+        : 'Today'
+      : `${dayNum} ${monthShort}`;
+    const dateStr = `${dayNum} ${monthLong}`;
+
+    // Read recorded spend from backend database points
+    const dbPoint = dailyTrendPoints?.find((p) => p.date === isoDate);
+    const amount = isToday
+      ? todaySpent > 0
+        ? todaySpent
+        : dbPoint?.total || 0
+      : dbPoint?.total || 0;
+
+    return {
+      dayLabel,
+      dateStr,
+      amount,
+      isToday,
+    };
+  });
 
   // Graph geometry - expanded width gives dedicated right-side margin for the ideal badge
   const chartWidth = 540;
@@ -282,6 +304,19 @@ export const DailySpendingChartCard: React.FC<DailySpendingChartCardProps> = ({
           <span>Disciplined Pace</span>
         </div>
       </div>
+
+      {/* Burn Rate Metric */}
+      {burnRate && (
+        <div className="bg-[#FAFDFB] border border-[#CEE4D5] rounded-xl p-2.5 flex items-center justify-between text-xs text-[#1E5E45]">
+          <div className="flex items-center gap-1.5 font-semibold">
+            <Zap className="w-3.5 h-3.5" />
+            <span>Avg. Daily Spend: {burnRate.averageDailySpend?.toLocaleString() || 0} RWF</span>
+          </div>
+          <span className="text-[11px] text-[#55695D]">
+            Projected Month Spend: <strong>{burnRate.projectedMonthSpend?.toLocaleString() || 0} RWF</strong>
+          </span>
+        </div>
+      )}
     </section>
   );
 };

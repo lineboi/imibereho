@@ -116,11 +116,6 @@ export const MonthlySavingsProjector: React.FC<MonthlySavingsProjectorProps> = (
               +{monthlySavings.toLocaleString()} RWF
             </span>
             <span className="text-xs text-[#BEDCD0]">/ {language === 'RW' ? 'kwezi' : 'month'}</span>
-            {apiSavings && (
-              <span className="text-[10px] bg-[#1E5E45] text-[#A6E3C3] px-2 py-0.5 rounded border border-[#2D7354] font-mono shrink-0 ml-1">
-                Live API 200 OK
-              </span>
-            )}
           </div>
           <span className="text-[11px] text-[#A6CDBE] block mt-0.5">
             ({selectedSwap.difference.toLocaleString()} RWF {t.perMealSavings} × {mealsPerWeek}x × 4.3 wks)
@@ -140,41 +135,59 @@ export const MonthlySavingsProjector: React.FC<MonthlySavingsProjectorProps> = (
 
       {/* Real-life Rwandan Purchasing Power Comparisons */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-        <div className="bg-white p-2.5 rounded-xl border border-[#EAE4D8] flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-[#E6F4FF] text-[#0284C7] flex items-center justify-center shrink-0">
-            <Droplets className="w-3.5 h-3.5" />
-          </div>
-          <div>
-            <span className="font-semibold text-[#1F2937] block text-[11.5px]">WASAC Water</span>
-            <span className="text-[10.5px] text-[#6B7280] leading-tight block">
-              {language === 'RW' ? 'Yishyura amazi y’ukwezi' : 'Covers ~2-3 weeks tap water'}
-            </span>
-          </div>
-        </div>
+        {apiSavings?.purchasingPowerEquivalents && apiSavings.purchasingPowerEquivalents.length > 0 ? (
+          apiSavings.purchasingPowerEquivalents.map((eq, idx) => (
+            <div key={idx} className="bg-white p-2.5 rounded-xl border border-[#EAE4D8] flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-[#E8F2EC] text-[#1E5E45] flex items-center justify-center shrink-0">
+                {idx === 0 ? <Droplets className="w-3.5 h-3.5" /> : idx === 1 ? <Bus className="w-3.5 h-3.5" /> : <HeartPulse className="w-3.5 h-3.5" />}
+              </div>
+              <div>
+                <span className="font-semibold text-[#1F2937] block text-[11.5px]">{eq.item}</span>
+                <span className="text-[10.5px] text-[#6B7280] leading-tight block">
+                  {eq.coversWeeks ? `Covers ~${eq.coversWeeks} weeks` : eq.ridesCount ? `${eq.ridesCount} city rides` : eq.quantity ? `${eq.quantity} units` : 'Emergency buffer'}
+                </span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <>
+            <div className="bg-white p-2.5 rounded-xl border border-[#EAE4D8] flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-[#E6F4FF] text-[#0284C7] flex items-center justify-center shrink-0">
+                <Droplets className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <span className="font-semibold text-[#1F2937] block text-[11.5px]">WASAC Water</span>
+                <span className="text-[10.5px] text-[#6B7280] leading-tight block">
+                  {language === 'RW' ? 'Yishyura amazi y’ukwezi' : 'Covers ~2-3 weeks tap water'}
+                </span>
+              </div>
+            </div>
 
-        <div className="bg-white p-2.5 rounded-xl border border-[#EAE4D8] flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center shrink-0">
-            <Bus className="w-3.5 h-3.5" />
-          </div>
-          <div>
-            <span className="font-semibold text-[#1F2937] block text-[11.5px]">Public Transit</span>
-            <span className="text-[10.5px] text-[#6B7280] leading-tight block">
-              {language === 'RW' ? 'Ingendo 8 za bisi' : '8 Kigali city bus rides'}
-            </span>
-          </div>
-        </div>
+            <div className="bg-white p-2.5 rounded-xl border border-[#EAE4D8] flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-[#FEF3C7] text-[#D97706] flex items-center justify-center shrink-0">
+                <Bus className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <span className="font-semibold text-[#1F2937] block text-[11.5px]">Public Transit</span>
+                <span className="text-[10.5px] text-[#6B7280] leading-tight block">
+                  {language === 'RW' ? 'Ingendo 8 za bisi' : '8 Kigali city bus rides'}
+                </span>
+              </div>
+            </div>
 
-        <div className="bg-white p-2.5 rounded-xl border border-[#EAE4D8] flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-[#FEE2E2] text-[#DC2626] flex items-center justify-center shrink-0">
-            <HeartPulse className="w-3.5 h-3.5" />
-          </div>
-          <div>
-            <span className="font-semibold text-[#1F2937] block text-[11.5px]">Health Buffer</span>
-            <span className="text-[10.5px] text-[#6B7280] leading-tight block">
-              {language === 'RW' ? 'Umutekano mu buzima' : 'Bolsters emergency buffer'}
-            </span>
-          </div>
-        </div>
+            <div className="bg-white p-2.5 rounded-xl border border-[#EAE4D8] flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-[#FEE2E2] text-[#DC2626] flex items-center justify-center shrink-0">
+                <HeartPulse className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <span className="font-semibold text-[#1F2937] block text-[11.5px]">Health Buffer</span>
+                <span className="text-[10.5px] text-[#6B7280] leading-tight block">
+                  {language === 'RW' ? 'Umutekano mu buzima' : 'Bolsters emergency buffer'}
+                </span>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Log into Tracker button */}

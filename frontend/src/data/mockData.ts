@@ -64,9 +64,13 @@ export const INCOME_BRACKETS: { value: string; label: string; numericValue: numb
 ];
 
 export const INITIAL_PROFILE: HouseholdProfile = {
+  id: 'usr_01M628ZQ5KAPPWPNCZQZGW1KK6',
   district: 'Gasabo',
   householdSize: '4 people',
-  monthlyIncome: '180,000 RWF',
+  monthlyIncome: '500,000 RWF',
+  plannedEssentials: 250000,
+  savingsBuffer: 250000,
+  preferredLanguage: 'EN',
   currency: 'RWF',
 };
 

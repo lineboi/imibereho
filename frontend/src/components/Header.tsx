@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import type { Language, NavTab } from '../types';
 import { TRACKER_TRANSLATIONS } from '../data/mockTrackerData';
-import { checkBackendReadiness, type ReadinessResult } from '../services/api';
-import { Home, BarChart2, ShieldCheck, Sprout, Activity } from 'lucide-react';
-import { ReadinessModal } from './ReadinessModal';
+import { Home, BarChart2, ShieldCheck, Sprout, User } from 'lucide-react';
 
 interface HeaderProps {
   language: Language;
@@ -11,6 +9,8 @@ interface HeaderProps {
   activeTab?: NavTab;
   onTabChange?: (tab: NavTab) => void;
   onLogoClick?: () => void;
+  onOpenProfile?: () => void;
+  profileDistrict?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -19,29 +19,10 @@ export const Header: React.FC<HeaderProps> = ({
   activeTab = 'tracker',
   onTabChange,
   onLogoClick,
+  onOpenProfile,
+  profileDistrict,
 }) => {
   const t = TRACKER_TRANSLATIONS[language];
-  const [readiness, setReadiness] = useState<ReadinessResult | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-
-    const runCheck = () => {
-      checkBackendReadiness().then((res) => {
-        if (active) setReadiness(res);
-      });
-    };
-
-    runCheck();
-    // Poll every 30s to keep backend readiness live
-    const interval = setInterval(runCheck, 30000);
-
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, []);
 
   const tabs: { id: NavTab; label: string; icon: React.ReactNode }[] = [
     {
@@ -123,32 +104,21 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
         )}
 
-        {/* Right side: Backend Live Status & Language Switcher EN / RW */}
-        <div className="flex items-center gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            title="Click to view FastAPI Backend & Database Readiness Diagnostics (/ready)"
-            className={`hidden sm:inline-flex items-center gap-1.5 text-[10.5px] font-semibold px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
-              readiness?.ready
-                ? 'bg-[#E8F3EC] text-[#1E5E45] border-[#CEE3D5] hover:bg-[#d9ece0]'
-                : readiness?.status === 'offline'
-                ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
-            }`}
-          >
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                readiness?.ready
-                  ? 'bg-[#1E5E45] animate-pulse'
-                  : readiness?.status === 'offline'
-                  ? 'bg-red-600'
-                  : 'bg-amber-600 animate-pulse'
-              }`}
-            />
-            <Activity className="w-3 h-3 opacity-70" />
-            <span>{readiness?.ready ? 'API Live (/ready)' : readiness?.status === 'offline' ? 'API Offline' : 'API Degraded'}</span>
-          </button>
+        {/* Right side: Profile & Language Switcher EN / RW */}
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+          {onOpenProfile && (
+            <button
+              type="button"
+              onClick={onOpenProfile}
+              title="Open Household Profile"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-[#D5DDD7] bg-white hover:bg-[#F2EFE8] text-[#1E5E45] transition-colors cursor-pointer shadow-2xs"
+            >
+              <User className="w-3.5 h-3.5 text-[#1E5E45]" />
+              <span className="hidden sm:inline font-medium text-[#2D4537] capitalize">
+                {profileDistrict || 'Profile'}
+              </span>
+            </button>
+          )}
 
           <div className="flex items-center text-sm font-semibold tracking-wider">
             <button
@@ -177,13 +147,6 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
       </div>
-
-      <ReadinessModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        initialResult={readiness}
-        onRefreshSuccess={(res) => setReadiness(res)}
-      />
     </header>
   );
 };

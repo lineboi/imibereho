@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Language, NavTab, MonthlyBudgetPlan, ExpenseItem, IncomeItem } from '../../types';
+import { TRACKER_TRANSLATIONS } from '../../data/mockTrackerData';
 import {
-  TRACKER_TRANSLATIONS,
-  INITIAL_MONTHLY_PLAN,
-  INITIAL_TODAY_EXPENSES,
-  INITIAL_TODAY_INCOME,
-} from '../../data/mockTrackerData';
+  fetchTrackerOverview,
+  fetchTrackerTransactions,
+  createTrackerTransaction,
+  deleteTrackerTransaction,
+  fetchTrackerDailyTrend,
+  fetchTrackerBurnRate,
+  fetchBudgetBenchmark,
+  type TrackerOverviewResponse,
+  type TrackerDailyTrendPoint,
+  type TrackerBurnRateResponse,
+  type TrackerCategory,
+  type BudgetBenchmarkData,
+} from '../../services/api';
 import { MonthlyPlanCard } from './MonthlyPlanCard';
 import { TodaySpendingCard } from './TodaySpendingCard';
 import { BufferAdviceCard } from './BufferAdviceCard';
@@ -14,6 +23,7 @@ import { BottomNav } from './BottomNav';
 import { AddExpenseModal } from './AddExpenseModal';
 import { AddIncomeModal } from './AddIncomeModal';
 import { ShockScenarioModal } from './ShockScenarioModal';
+import { EditBudgetPlanModal } from './EditBudgetPlanModal';
 import { ArrowLeft, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 
 interface DailyTrackerPageProps {
@@ -21,6 +31,7 @@ interface DailyTrackerPageProps {
   onNavigateHome: () => void;
   district?: string;
   householdSize?: string;
+  monthlyIncome?: string;
   activeTab: NavTab;
   onTabChange: (tab: NavTab) => void;
 }
@@ -30,49 +41,226 @@ export const DailyTrackerPage: React.FC<DailyTrackerPageProps> = ({
   onNavigateHome,
   district = 'Gasabo',
   householdSize = '4 people',
+  monthlyIncome,
   activeTab,
   onTabChange,
 }) => {
   const t = TRACKER_TRANSLATIONS[language];
+  const sizeNum = parseInt(householdSize.replace(/[^0-9]/g, ''), 10) || 4;
+  const currentMonth = new Intl.DateTimeFormat(language === 'RW' ? 'rw-RW' : 'en-US', {
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date());
+
+  const parsedInitialIncome = parseInt((monthlyIncome || '').replace(/[^0-9]/g, ''), 10) || 0;
+
+  // Real database-backed state: initialized from database benchmark upon fetch
   const [plan, setPlan] = useState<MonthlyBudgetPlan>({
-    ...INITIAL_MONTHLY_PLAN,
+    monthlyIncome: parsedInitialIncome,
+    plannedExpenses: 0,
+    leftAfterPlan: 0,
+    demoSavings: 0,
+    month: currentMonth,
     district,
     householdSize,
   });
-  const [expenses, setExpenses] = useState<ExpenseItem[]>(INITIAL_TODAY_EXPENSES);
-  const [incomes, setIncomes] = useState<IncomeItem[]>(INITIAL_TODAY_INCOME);
+  // Real database-backed state: starts empty (0 mock objects)
+  const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
+  const [incomes, setIncomes] = useState<IncomeItem[]>([]);
+  const [dailyTrendPoints, setDailyTrendPoints] = useState<TrackerDailyTrendPoint[]>([]);
+  const [burnRate, setBurnRate] = useState<TrackerBurnRateResponse | null>(null);
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   const [addIncomeOpen, setAddIncomeOpen] = useState(false);
   const [shockModalOpen, setShockModalOpen] = useState(false);
+  const [editPlanOpen, setEditPlanOpen] = useState(false);
 
-  const handleAddExpense = (newExpense: Omit<ExpenseItem, 'id'>) => {
+  // Helper to sync state from backend database responses
+  const applyBackendData = (
+    overview: TrackerOverviewResponse | null,
+    txList: { items: { id: string; type: string; title: string; category: string; amount: number; date: string; note: string | null }[] } | null,
+    trend: { points: TrackerDailyTrendPoint[] } | null,
+    burn: TrackerBurnRateResponse | null,
+    bench?: BudgetBenchmarkData | null
+  ) => {
+    if (overview || bench) {
+      setPlan((prev) => {
+        const planned = overview?.plannedExpenses ?? (bench?.total || prev.plannedExpenses);
+        const inc = overview?.monthlyIncome ?? (prev.monthlyIncome > 0 ? prev.monthlyIncome : (bench ? Math.round(bench.total * 1.15) : 0));
+        return {
+          ...prev,
+          monthlyIncome: inc,
+          plannedExpenses: planned,
+          leftAfterPlan: overview?.leftAfterPlan ?? Math.max(0, inc - planned),
+          demoSavings: overview?.demoSavings ?? Math.round(inc * 0.2),
+          district: bench ? bench.district.name : prev.district,
+          householdSize: bench ? `${bench.householdSize} people` : prev.householdSize,
+        };
+      });
+    }
+
+    if (txList) {
+      const validIcons = ['food', 'transport', 'utilities', 'other'] as const;
+      const expItems: ExpenseItem[] = txList.items
+        .filter((item) => item.type === 'expense')
+        .map((item) => {
+          const catLabel = item.category.charAt(0).toUpperCase() + item.category.slice(1);
+          const iconType = validIcons.includes(item.category as typeof validIcons[number])
+            ? (item.category as typeof validIcons[number])
+            : 'other';
+          return {
+            id: item.id,
+            title: item.title,
+            category: catLabel,
+            note: item.note || 'General expense',
+            amount: item.amount,
+            iconType,
+            date: item.date ? item.date.slice(0, 10) : 'Today',
+          };
+        });
+
+      const incItems: IncomeItem[] = txList.items
+        .filter((item) => item.type === 'income')
+        .map((item) => {
+          const catLabel = item.category.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+          return {
+            id: item.id,
+            source: item.title,
+            category: catLabel,
+            note: item.note || 'Income received',
+            amount: item.amount,
+            date: item.date ? item.date.slice(0, 10) : 'Today',
+          };
+        });
+
+      setExpenses(expItems);
+      setIncomes(incItems);
+    }
+
+    if (trend?.points) setDailyTrendPoints(trend.points);
+    if (burn) setBurnRate(burn);
+  };
+
+  const refreshTracker = async () => {
+    try {
+      const [overview, txList, trend, burn, bench] = await Promise.all([
+        fetchTrackerOverview(),
+        fetchTrackerTransactions(),
+        fetchTrackerDailyTrend(),
+        fetchTrackerBurnRate(),
+        fetchBudgetBenchmark(district, sizeNum),
+      ]);
+      applyBackendData(overview, txList, trend, burn, bench);
+    } catch (err) {
+      console.warn('[Tracker] Error refreshing backend data:', err);
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    Promise.all([
+      fetchTrackerOverview(),
+      fetchTrackerTransactions(),
+      fetchTrackerDailyTrend(),
+      fetchTrackerBurnRate(),
+      fetchBudgetBenchmark(district, sizeNum),
+    ])
+      .then(([overview, txList, trend, burn, bench]) => {
+        if (!active) return;
+        applyBackendData(overview, txList, trend, burn, bench);
+      })
+      .catch((err) => {
+        console.warn('[Tracker] Error loading backend data:', err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [district, sizeNum]);
+
+  const handleAddExpense = async (newExpense: Omit<ExpenseItem, 'id'>) => {
+    const categoryMap: Record<string, TrackerCategory> = {
+      Food: 'food',
+      Transport: 'transport',
+      Utilities: 'utilities',
+      Other: 'other',
+    };
+    const cat = categoryMap[newExpense.category] || 'other';
+
+    // Optimistic local update
     const item: ExpenseItem = {
       ...newExpense,
       id: `exp-${Date.now()}`,
     };
     setExpenses((prev) => [item, ...prev]);
-
-    // Update planned expenses and left after plan
     setPlan((prev) => ({
       ...prev,
       plannedExpenses: prev.plannedExpenses + newExpense.amount,
       leftAfterPlan: Math.max(0, prev.leftAfterPlan - newExpense.amount),
     }));
+
+    // Persist to live backend
+    try {
+      await createTrackerTransaction({
+        type: 'expense',
+        title: newExpense.title,
+        category: cat,
+        note: newExpense.note || null,
+        amount: newExpense.amount,
+        date: new Date().toISOString(),
+      });
+      refreshTracker();
+    } catch (err) {
+      console.warn('Backend create expense failed:', err);
+    }
   };
 
-  const handleAddIncome = (newIncome: Omit<IncomeItem, 'id'>) => {
+  const handleAddIncome = async (newIncome: Omit<IncomeItem, 'id'>) => {
+    const categoryMap: Record<string, TrackerCategory> = {
+      'Mobile Money': 'mobile_money',
+      'Day Wage': 'day_wage',
+      'Market Sales': 'market_sales',
+      'Side Gig': 'side_gig',
+    };
+    const cat = categoryMap[newIncome.category] || 'mobile_money';
+
+    // Optimistic local update
     const item: IncomeItem = {
       ...newIncome,
       id: `inc-${Date.now()}`,
     };
     setIncomes((prev) => [item, ...prev]);
-
-    // Update monthlyIncome and increase remaining leftAfterPlan
     setPlan((prev) => ({
       ...prev,
       monthlyIncome: prev.monthlyIncome + newIncome.amount,
       leftAfterPlan: prev.leftAfterPlan + newIncome.amount,
     }));
+
+    // Persist to live backend
+    try {
+      await createTrackerTransaction({
+        type: 'income',
+        title: newIncome.source,
+        category: cat,
+        note: newIncome.note || null,
+        amount: newIncome.amount,
+        date: new Date().toISOString(),
+      });
+      refreshTracker();
+    } catch (err) {
+      console.warn('Backend create income failed:', err);
+    }
+  };
+
+  const handleDeleteTransaction = async (id: string) => {
+    setExpenses((prev) => prev.filter((item) => item.id !== id));
+    setIncomes((prev) => prev.filter((item) => item.id !== id));
+    try {
+      await deleteTrackerTransaction(id);
+      refreshTracker();
+    } catch (err) {
+      console.warn('Backend delete transaction failed:', err);
+    }
   };
 
   const handleApplyShock = (amount: number) => {
@@ -85,13 +273,19 @@ export const DailyTrackerPage: React.FC<DailyTrackerPageProps> = ({
   };
 
   const handleResetPlan = () => {
-    setPlan({
-      ...INITIAL_MONTHLY_PLAN,
-      district,
-      householdSize,
-    });
-    setExpenses(INITIAL_TODAY_EXPENSES);
-    setIncomes(INITIAL_TODAY_INCOME);
+    setExpenses([]);
+    setIncomes([]);
+    refreshTracker();
+  };
+
+  const handleSavePlan = (income: number, expensesAmount: number) => {
+    setPlan((prev) => ({
+      ...prev,
+      monthlyIncome: income,
+      plannedExpenses: expensesAmount,
+      leftAfterPlan: Math.max(0, income - expensesAmount),
+      demoSavings: Math.round(income * 0.2),
+    }));
   };
 
   return (
@@ -125,7 +319,7 @@ export const DailyTrackerPage: React.FC<DailyTrackerPageProps> = ({
           </h1>
 
           {/* Context Badges Row */}
-          <div className="flex items-center gap-2.5 mt-2.5">
+          <div className="flex flex-wrap items-center gap-2.5 mt-2.5">
             <span className="bg-[#E2EDE4] text-[#1E5E45] text-xs font-semibold px-3 py-1 rounded-full border border-[#D0E2D4]">
               {plan.district} · {plan.householdSize}
             </span>
@@ -140,7 +334,11 @@ export const DailyTrackerPage: React.FC<DailyTrackerPageProps> = ({
           {/* Column 1: Monthly Overview & Actions & Buffer Guidance */}
           <div className="flex flex-col gap-4 sm:gap-5">
             {/* Monthly Plan Overview Card */}
-            <MonthlyPlanCard plan={plan} language={language} />
+            <MonthlyPlanCard
+              plan={plan}
+              language={language}
+              onEditPlan={() => setEditPlanOpen(true)}
+            />
 
             {/* Action Buttons Row (Mobile View) */}
             <div className="block lg:hidden">
@@ -173,6 +371,7 @@ export const DailyTrackerPage: React.FC<DailyTrackerPageProps> = ({
                 plan={plan}
                 language={language}
                 onOpenAddIncome={() => setAddIncomeOpen(true)}
+                onDeleteTransaction={handleDeleteTransaction}
               />
             </div>
 
@@ -187,6 +386,8 @@ export const DailyTrackerPage: React.FC<DailyTrackerPageProps> = ({
               language={language}
               idealDailyLimit={5000}
               todaySpent={expenses.reduce((sum, item) => sum + item.amount, 0)}
+              dailyTrendPoints={dailyTrendPoints}
+              burnRate={burnRate}
             />
           </div>
 
@@ -218,6 +419,7 @@ export const DailyTrackerPage: React.FC<DailyTrackerPageProps> = ({
               plan={plan}
               language={language}
               onOpenAddIncome={() => setAddIncomeOpen(true)}
+              onDeleteTransaction={handleDeleteTransaction}
             />
           </div>
         </div>
@@ -256,6 +458,14 @@ export const DailyTrackerPage: React.FC<DailyTrackerPageProps> = ({
         plan={plan}
         onApplyShock={handleApplyShock}
         onResetPlan={handleResetPlan}
+        language={language}
+      />
+
+      <EditBudgetPlanModal
+        isOpen={editPlanOpen}
+        onClose={() => setEditPlanOpen(false)}
+        plan={plan}
+        onSavePlan={handleSavePlan}
         language={language}
       />
     </div>

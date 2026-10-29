@@ -190,9 +190,11 @@ export interface ShockCatalogItem {
 export interface CopingLeverItem {
   id: string;
   title: string;
-  description: string;
-  reliefType: 'monthly_reduction' | 'lump_sum_support';
-  reliefAmount: number;
+  kind: 'monthly_relief' | 'one_off_support';
+  amount: number;
+  description?: string;
+  reliefType?: 'monthly_reduction' | 'lump_sum_support';
+  reliefAmount?: number;
 }
 
 export interface ShockCatalogResponse {
@@ -283,9 +285,12 @@ export interface AgroSavingsProjectionRequest {
 
 export interface PurchasingPowerEquivalent {
   item: string;
-  metric: string;
-  equivalentValue: string;
-  contextEn: string;
+  metric?: string;
+  coversWeeks?: number | null;
+  ridesCount?: number | null;
+  quantity?: number | null;
+  equivalentValue?: string;
+  contextEn?: string;
   contextRw?: string;
 }
 
@@ -711,6 +716,7 @@ export interface UserProfileResponse {
   plannedEssentials: number | null;
   savingsBuffer: number | null;
   preferredLanguage: 'EN' | 'RW';
+  role?: 'citizen' | 'decision_maker';
 }
 
 export interface ProfilePatchPayload {
@@ -720,6 +726,90 @@ export interface ProfilePatchPayload {
   plannedEssentials?: number | null;
   savingsBuffer?: number | null;
   preferredLanguage?: 'EN' | 'RW';
+  role?: 'citizen' | 'decision_maker';
+}
+
+// ------------------------------------------
+// Daily Tracker Types (contract §11.10)
+// ------------------------------------------
+
+export type TrackerTransactionType = 'expense' | 'income';
+export type TrackerExpenseCategory = 'food' | 'transport' | 'utilities' | 'other';
+export type TrackerIncomeCategory = 'mobile_money' | 'day_wage' | 'market_sales' | 'side_gig';
+export type TrackerCategory = TrackerExpenseCategory | TrackerIncomeCategory;
+export type BudgetHealth = 'normal' | 'caution' | 'exceeded';
+
+export interface TrackerOverviewResponse {
+  month: string;
+  monthlyIncome: number;
+  plannedExpenses: number | null;
+  leftAfterPlan: number | null;
+  demoSavings: number | null;
+  totalSpentSoFar: number;
+  dailyBudgetHealth: BudgetHealth | null;
+}
+
+export interface TrackerTransactionItem {
+  id: string;
+  type: TrackerTransactionType;
+  title: string;
+  category: TrackerCategory;
+  amount: number;
+  date: string;
+  iconType: TrackerCategory;
+  note: string | null;
+}
+
+export interface TrackerTransactionListResponse {
+  items: TrackerTransactionItem[];
+  dayTotalExpenses: number | null;
+  nextCursor: string | null;
+}
+
+export interface TrackerTransactionCreatePayload {
+  type: TrackerTransactionType;
+  title: string;
+  category: TrackerCategory;
+  note?: string | null;
+  amount: number;
+  date: string;
+}
+
+export interface TrackerTransactionCreatedResponse {
+  id: string;
+  status: 'recorded';
+  amount: number;
+  newMonthlySpentTotal: number;
+}
+
+export interface TrackerTransactionPatchPayload {
+  type?: TrackerTransactionType;
+  title?: string;
+  category?: TrackerCategory;
+  note?: string | null;
+  amount?: number;
+  date?: string;
+}
+
+export interface TrackerDailyTrendPoint {
+  date: string;
+  total: number;
+}
+
+export interface TrackerDailyTrendResponse {
+  month: string;
+  points: TrackerDailyTrendPoint[];
+}
+
+export interface TrackerBurnRateResponse {
+  month: string;
+  daysElapsed: number;
+  daysInMonth: number;
+  totalSpentSoFar: number;
+  averageDailySpend: number | null;
+  projectedMonthSpend: number | null;
+  plannedExpenses: number | null;
+  projectedVsPlan: number | null;
 }
 
 // ==========================================
@@ -1135,9 +1225,20 @@ export async function fetchHealthInsuranceEstimates(): Promise<SurveyIndicatorRe
 /**
  * GET /api/v1/dashboard/overview
  */
-export async function fetchDashboardOverview(): Promise<DashboardOverviewResponse | null> {
+export async function fetchDashboardOverview(params?: {
+  geography?: string;
+  period?: string;
+  householdGroup?: string;
+  topN?: number;
+}): Promise<DashboardOverviewResponse | null> {
   try {
-    const res = await fetch(`${API_BASE}/dashboard/overview`);
+    const q = new URLSearchParams();
+    if (params?.geography) q.set('geography', params.geography);
+    if (params?.period) q.set('period', params.period);
+    if (params?.householdGroup) q.set('householdGroup', params.householdGroup);
+    if (params?.topN) q.set('topN', String(params.topN));
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    const res = await fetch(`${API_BASE}/dashboard/overview${qs}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
@@ -1231,6 +1332,14 @@ export async function fetchDistrictFinancialInclusion(): Promise<DistrictFinanci
 // ------------------------------------------
 
 const TOKEN_STORAGE_KEY = 'imibereho_auth_token';
+const USER_STORAGE_KEY = 'imibereho_auth_user';
+
+export interface StoredUser {
+  id?: string;
+  identifier?: string;
+  district?: string;
+  householdSize?: number;
+}
 
 export function getStoredToken(): string | null {
   try {
@@ -1248,9 +1357,27 @@ export function setStoredToken(token: string): void {
   }
 }
 
+export function getStoredUser(): StoredUser | null {
+  try {
+    const raw = localStorage.getItem(USER_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredUser(user: StoredUser): void {
+  try {
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+  } catch (err) {
+    console.warn('Failed to store user:', err);
+  }
+}
+
 export function clearStoredToken(): void {
   try {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(USER_STORAGE_KEY);
   } catch (err) {
     console.warn('Failed to clear token:', err);
   }
@@ -1275,6 +1402,14 @@ export async function registerHousehold(
     }
     if (data.token) {
       setStoredToken(data.token);
+      if (data.user) {
+        setStoredUser({
+          id: data.user.id,
+          identifier: data.user.identifier,
+          district: data.user.district,
+          householdSize: data.user.householdSize,
+        });
+      }
     }
     return { success: true, data };
   } catch (err) {
@@ -1301,6 +1436,14 @@ export async function loginHousehold(
     }
     if (data.token) {
       setStoredToken(data.token);
+      if (data.user) {
+        setStoredUser({
+          id: data.user.id,
+          identifier: data.user.identifier,
+          district: data.user.district,
+          householdSize: data.user.householdSize,
+        });
+      }
     }
     return { success: true, data };
   } catch (err) {
@@ -1351,6 +1494,196 @@ export async function updateUserProfile(
     return await res.json();
   } catch (err) {
     console.warn('[API] updateUserProfile failed:', err);
+    return null;
+  }
+}
+
+// ------------------------------------------
+// Daily Tracker Client (contract §11.10)
+// ------------------------------------------
+
+/**
+ * Resolves the authenticated token from storage.
+ */
+export async function ensureAuthToken(): Promise<string | null> {
+  return getStoredToken();
+}
+
+/**
+ * GET /api/v1/tracker/overview
+ */
+export async function fetchTrackerOverview(
+  month?: string,
+  token?: string
+): Promise<TrackerOverviewResponse | null> {
+  const authToken = token || (await ensureAuthToken());
+  if (!authToken) return null;
+  try {
+    const query = month ? `?month=${encodeURIComponent(month)}` : '';
+    const res = await fetch(`${API_BASE}/tracker/overview${query}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('[API] fetchTrackerOverview failed:', err);
+    return null;
+  }
+}
+
+/**
+ * GET /api/v1/tracker/transactions
+ */
+export async function fetchTrackerTransactions(
+  params?: {
+    month?: string;
+    date?: string;
+    type?: TrackerTransactionType;
+    limit?: number;
+    cursor?: string;
+  },
+  token?: string
+): Promise<TrackerTransactionListResponse | null> {
+  const authToken = token || (await ensureAuthToken());
+  if (!authToken) return null;
+  try {
+    const searchParams = new URLSearchParams();
+    if (params?.month) searchParams.set('month', params.month);
+    if (params?.date) searchParams.set('date', params.date);
+    if (params?.type) searchParams.set('type', params.type);
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    if (params?.cursor) searchParams.set('cursor', params.cursor);
+
+    const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+    const res = await fetch(`${API_BASE}/tracker/transactions${query}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('[API] fetchTrackerTransactions failed:', err);
+    return null;
+  }
+}
+
+/**
+ * POST /api/v1/tracker/transactions
+ */
+export async function createTrackerTransaction(
+  payload: TrackerTransactionCreatePayload,
+  token?: string
+): Promise<TrackerTransactionCreatedResponse | null> {
+  const authToken = token || (await ensureAuthToken());
+  if (!authToken) return null;
+  try {
+    const res = await fetch(`${API_BASE}/tracker/transactions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => null);
+      console.warn('[API] createTrackerTransaction failed:', res.status, errData);
+      return null;
+    }
+    return await res.json();
+  } catch (err) {
+    console.warn('[API] createTrackerTransaction error:', err);
+    return null;
+  }
+}
+
+/**
+ * PATCH /api/v1/tracker/transactions/{id}
+ */
+export async function updateTrackerTransaction(
+  id: string,
+  patch: TrackerTransactionPatchPayload,
+  token?: string
+): Promise<TrackerTransactionItem | null> {
+  const authToken = token || (await ensureAuthToken());
+  if (!authToken) return null;
+  try {
+    const res = await fetch(`${API_BASE}/tracker/transactions/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn('[API] updateTrackerTransaction error:', err);
+    return null;
+  }
+}
+
+/**
+ * DELETE /api/v1/tracker/transactions/{id}
+ */
+export async function deleteTrackerTransaction(
+  id: string,
+  token?: string
+): Promise<boolean> {
+  const authToken = token || (await ensureAuthToken());
+  if (!authToken) return false;
+  try {
+    const res = await fetch(`${API_BASE}/tracker/transactions/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    return res.status === 204;
+  } catch (err) {
+    console.warn('[API] deleteTrackerTransaction error:', err);
+    return false;
+  }
+}
+
+/**
+ * GET /api/v1/tracker/daily-trend
+ */
+export async function fetchTrackerDailyTrend(
+  month?: string,
+  token?: string
+): Promise<TrackerDailyTrendResponse | null> {
+  const authToken = token || (await ensureAuthToken());
+  if (!authToken) return null;
+  try {
+    const query = month ? `?month=${encodeURIComponent(month)}` : '';
+    const res = await fetch(`${API_BASE}/tracker/daily-trend${query}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('[API] fetchTrackerDailyTrend error:', err);
+    return null;
+  }
+}
+
+/**
+ * GET /api/v1/tracker/burn-rate
+ */
+export async function fetchTrackerBurnRate(
+  month?: string,
+  token?: string
+): Promise<TrackerBurnRateResponse | null> {
+  const authToken = token || (await ensureAuthToken());
+  if (!authToken) return null;
+  try {
+    const query = month ? `?month=${encodeURIComponent(month)}` : '';
+    const res = await fetch(`${API_BASE}/tracker/burn-rate${query}`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    console.warn('[API] fetchTrackerBurnRate error:', err);
     return null;
   }
 }

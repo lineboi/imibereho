@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { X, Check, Copy, Code2, Sparkles, TrendingUp, UserCheck, KeyRound, ArrowRight, ShieldCheck, AlertCircle, LogIn, UserPlus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Code2, Sparkles, TrendingUp, UserCheck, KeyRound, ArrowRight, AlertCircle, LogIn, UserPlus, ShieldCheck } from 'lucide-react';
 import type { HouseholdProfile, Language } from '../types';
 import { TRANSLATIONS } from '../data/mockData';
-import { registerHousehold, loginHousehold, getStoredToken } from '../services/api';
+import { registerHousehold, loginHousehold, getStoredToken, fetchBudgetBenchmark } from '../services/api';
 
 interface PayloadModalProps {
   isOpen: boolean;
@@ -21,22 +21,34 @@ export const PayloadModal: React.FC<PayloadModalProps> = ({
   mode,
   onProceedToTracker,
 }) => {
-  const [copied, setCopied] = useState(false);
-  const [viewMode, setViewMode] = useState<'form' | 'json'>(mode === 'continue' ? 'json' : 'form');
-  const [identifier, setIdentifier] = useState('+250788123456');
-  const [password, setPassword] = useState('Password2026!');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccess, setAuthSuccess] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(getStoredToken());
+  const [dbBenchmarkCost, setDbBenchmarkCost] = useState<number | null>(null);
+
+  const numericIncome = parseInt(profile.monthlyIncome.replace(/[^0-9]/g, ''), 10) || 180000;
+  const householdCount = parseInt(profile.householdSize, 10) || 4;
+
+  useEffect(() => {
+    let active = true;
+    if (isOpen) {
+      fetchBudgetBenchmark(profile.district, householdCount).then((res) => {
+        if (active && res) setDbBenchmarkCost(res.total);
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [isOpen, profile.district, householdCount]);
 
   const t = TRANSLATIONS[language];
 
   if (!isOpen) return null;
 
-  const numericIncome = parseInt(profile.monthlyIncome.replace(/[^0-9]/g, ''), 10) || 180000;
-  const householdCount = parseInt(profile.householdSize, 10) || 4;
-  const estimatedCost = Math.round(householdCount * 38000 + 45000);
+  const estimatedCost = dbBenchmarkCost ?? Math.round(householdCount * 38000 + 45000);
   const balance = numericIncome - estimatedCost;
   const resilienceRatio = Math.min(100, Math.max(15, Math.round((numericIncome / estimatedCost) * 60)));
 
@@ -103,38 +115,6 @@ export const PayloadModal: React.FC<PayloadModalProps> = ({
     }
   };
 
-  const payloadObject = {
-    endpoint_target: actionConfig.endpoint,
-    action_type: mode,
-    status: 'connected_live_backend',
-    household_profile: {
-      district: profile.district,
-      household_size: householdCount,
-      household_size_raw: profile.householdSize,
-      monthly_income_rwf: numericIncome,
-      currency: 'RWF',
-      timestamp: new Date().toISOString(),
-    },
-    client_metadata: {
-      locale: language,
-      platform: 'web',
-    },
-    computed_preview: {
-      estimated_baseline_cost_rwf: estimatedCost,
-      estimated_monthly_buffer_rwf: balance,
-      resilience_health_index: `${resilienceRatio}%`,
-      recommended_buffer_months: balance > 0 ? 3 : 1,
-    },
-  };
-
-  const jsonString = JSON.stringify(payloadObject, null, 2);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(jsonString);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full max-w-2xl bg-[#FAF8F5] rounded-2xl shadow-2xl border border-[#DDD7CE] overflow-hidden flex flex-col max-h-[90vh]">
@@ -149,7 +129,7 @@ export const PayloadModal: React.FC<PayloadModalProps> = ({
                 {actionConfig.label}
               </h3>
               <p className="text-xs text-[#C4E5D4] mt-0.5">
-                FastAPI Live Endpoint: {actionConfig.endpoint}
+                Secure Account Access
               </p>
             </div>
           </div>
@@ -217,40 +197,67 @@ export const PayloadModal: React.FC<PayloadModalProps> = ({
             </div>
           </div>
 
-          {/* Tabs: Interactive Live Auth Form vs Raw JSON */}
+          {/* Form View for Auth */}
           {mode !== 'continue' && (
-            <div className="flex border-b border-[#E0DBD0] text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setViewMode('form')}
-                className={`py-2 px-3 border-b-2 cursor-pointer transition-colors ${
-                  viewMode === 'form'
-                    ? 'border-[#1E5E45] text-[#1E5E45]'
-                    : 'border-transparent text-[#6D8074] hover:text-[#183928]'
-                }`}
-              >
-                Live Interactive Auth
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('json')}
-                className={`py-2 px-3 border-b-2 cursor-pointer transition-colors ${
-                  viewMode === 'json'
-                    ? 'border-[#1E5E45] text-[#1E5E45]'
-                    : 'border-transparent text-[#6D8074] hover:text-[#183928]'
-                }`}
-              >
-                Inspect API Payload JSON
-              </button>
-            </div>
-          )}
-
-          {/* Form View for Live Auth */}
-          {viewMode === 'form' && mode !== 'continue' ? (
             <form onSubmit={handleAuthSubmit} className="bg-white p-5 rounded-xl border border-[#E3DED4] space-y-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-[#2C4033] flex items-center gap-1.5">
-                {mode === 'create_account' ? <UserPlus className="w-4 h-4 text-[#1E5E45]" /> : <LogIn className="w-4 h-4 text-[#1E5E45]" />}
-                <span>{mode === 'create_account' ? 'Create Real Account' : 'Sign In with Credentials'}</span>
+              <div className="text-xs font-bold uppercase tracking-wider text-[#2C4033] flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  {mode === 'create_account' ? <UserPlus className="w-4 h-4 text-[#1E5E45]" /> : <LogIn className="w-4 h-4 text-[#1E5E45]" />}
+                  <span>{mode === 'create_account' ? 'Create Real Account' : 'Sign In with Credentials'}</span>
+                </div>
+              </div>
+
+              {/* Preset Testing Credentials for Quick Presentation */}
+              <div className="p-3 bg-[#FAF8F4] border border-[#E4DFD5] rounded-xl space-y-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-stone-500 flex items-center justify-between">
+                  <span>Preset Testing Accounts</span>
+                  <span className="text-[10px] text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded font-semibold">1-Click Fill</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIdentifier('citizen@imibereho.rw');
+                      setPassword('Citizen2026!');
+                    }}
+                    className="p-2.5 text-left bg-white border border-stone-200 rounded-lg hover:border-[#1E5E45] hover:bg-emerald-50/40 transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-stone-900 group-hover:text-[#1E5E45]">
+                        Citizen Account
+                      </span>
+                      <span className="text-[9px] px-1.5 py-0.2 bg-stone-100 text-stone-600 rounded">Citizen</span>
+                    </div>
+                    <div className="text-[10.5px] text-stone-500 font-mono mt-1">
+                      citizen@imibereho.rw
+                    </div>
+                    <div className="text-[10px] text-stone-400 font-mono">
+                      Pass: Citizen2026!
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIdentifier('planner@imibereho.rw');
+                      setPassword('Planner2026!');
+                    }}
+                    className="p-2.5 text-left bg-white border border-stone-200 rounded-lg hover:border-[#123927] hover:bg-emerald-50/40 transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-stone-900 group-hover:text-[#123927]">
+                        Decision-Maker Account
+                      </span>
+                      <span className="text-[9px] px-1.5 py-0.2 bg-emerald-100 text-emerald-900 font-semibold rounded">Planner</span>
+                    </div>
+                    <div className="text-[10.5px] text-stone-500 font-mono mt-1">
+                      planner@imibereho.rw
+                    </div>
+                    <div className="text-[10px] text-stone-400 font-mono">
+                      Pass: Planner2026!
+                    </div>
+                  </button>
+                </div>
               </div>
 
               {authError && (
@@ -310,42 +317,13 @@ export const PayloadModal: React.FC<PayloadModalProps> = ({
                 </button>
               </div>
             </form>
-          ) : (
-            /* Code Viewer */
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-semibold text-[#3E5247]">
-                  Frontend Payload Object:
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="flex items-center gap-1.5 text-xs text-[#1E5E45] hover:text-[#133D2D] font-medium bg-[#EBF3ED] px-2.5 py-1 rounded-md transition-colors cursor-pointer"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy JSON</span>
-                    </>
-                  )}
-                </button>
-              </div>
-              <pre className="bg-[#14201A] text-[#BEE3CE] p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-56 leading-relaxed border border-[#23382E]">
-                <code>{jsonString}</code>
-              </pre>
-            </div>
           )}
         </div>
 
         {/* Footer */}
         <div className="bg-[#F0ECE3] px-6 py-3 border-t border-[#DDD7CE] flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-[11px] text-[#697A70]">
-            FastAPI Backend Live Endpoint Connected.
+            Imibereho · Rwanda Household Financial Resilience
           </p>
           <div className="flex items-center gap-2 self-end sm:self-auto">
             {onProceedToTracker && (
@@ -357,7 +335,7 @@ export const PayloadModal: React.FC<PayloadModalProps> = ({
                 }}
                 className="bg-[#1E5E45] hover:bg-[#164835] text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
               >
-                <span>Continue to Daily Tracker</span>
+                <span>Enter Platform</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}

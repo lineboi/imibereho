@@ -29,12 +29,17 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
     const numAmount = parseInt(amount.replace(/[^0-9]/g, ''), 10);
     if (!source.trim() || isNaN(numAmount) || numAmount <= 0) return;
 
+    const todayDateStr = new Intl.DateTimeFormat(language === 'RW' ? 'rw-RW' : 'en-US', {
+      day: 'numeric',
+      month: 'short',
+    }).format(new Date());
+
     onAddIncome({
       source: source.trim(),
       category,
       note: note.trim() || 'Income received',
       amount: numAmount,
-      date: t.todayDatePill,
+      date: todayDateStr,
     });
 
     setSource('');

@@ -44,6 +44,7 @@ class CurrentAccount:
     preferred_language: str
     planned_essentials: int | None
     savings_buffer: int | None
+    role: str = "citizen"
 
 
 def get_current_account(
@@ -74,6 +75,7 @@ def get_current_account(
         preferred_language=account.preferred_language,
         planned_essentials=account.planned_essentials,
         savings_buffer=account.savings_buffer,
+        role=getattr(account, "role", "citizen") or "citizen",
     )
 
 

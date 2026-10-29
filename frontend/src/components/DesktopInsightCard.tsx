@@ -4,8 +4,10 @@ import type { HouseholdProfile, Language } from '../types';
 import {
   fetchDashboardOverview,
   fetchNationalFinancialInclusion,
+  fetchBudgetBenchmark,
   type DashboardOverviewResponse,
   type NationalFinancialInclusionResponse,
+  type BudgetBenchmarkData,
 } from '../services/api';
 import { PieChart, MapPin, Sparkles, HeartHandshake, Database, BookOpen, Building2 } from 'lucide-react';
 import { SourcesModal } from './SourcesModal';
@@ -22,8 +24,12 @@ export const DesktopInsightCard: React.FC<DesktopInsightCardProps> = ({
 }) => {
   const [dashboardData, setDashboardData] = useState<DashboardOverviewResponse | null>(null);
   const [finScopeData, setFinScopeData] = useState<NationalFinancialInclusionResponse | null>(null);
+  const [benchmark, setBenchmark] = useState<BudgetBenchmarkData | null>(null);
   const [isSourcesOpen, setIsSourcesOpen] = useState(false);
   const [isPolicyOpen, setIsPolicyOpen] = useState(false);
+
+  const numericIncome = parseInt(profile.monthlyIncome.replace(/[^0-9]/g, ''), 10) || 180000;
+  const householdCount = parseInt(profile.householdSize, 10) || 4;
 
   useEffect(() => {
     let active = true;
@@ -36,19 +42,33 @@ export const DesktopInsightCard: React.FC<DesktopInsightCardProps> = ({
       if (active && res) setFinScopeData(res);
     });
 
+    fetchBudgetBenchmark(profile.district, householdCount).then((res) => {
+      if (active && res) setBenchmark(res);
+    });
+
     return () => {
       active = false;
     };
-  }, []);
+  }, [profile.district, householdCount]);
 
-  const numericIncome = parseInt(profile.monthlyIncome.replace(/[^0-9]/g, ''), 10) || 180000;
-  const householdCount = parseInt(profile.householdSize, 10) || 4;
-  
-  // Baseline calculations
-  const baselineCost = Math.round(householdCount * 36000 + 40000);
-  const foodEst = Math.round(baselineCost * 0.48);
-  const shelterEst = Math.round(baselineCost * 0.32);
-  const healthTransEst = baselineCost - foodEst - shelterEst;
+  // Live database calculations from PostgreSQL budget_benchmarks
+  const getLineAmount = (code: string) => benchmark?.lines.find((l) => l.categoryCode === code)?.monthlyAmount;
+  const foodLine = getLineAmount('food');
+  const housingLine = getLineAmount('housing');
+  const utilitiesLine = getLineAmount('utilities');
+  const transportLine = getLineAmount('transport');
+  const otherLine = getLineAmount('other_essentials');
+
+  const foodEst = foodLine ?? Math.round(numericIncome * 0.45);
+  const shelterEst =
+    housingLine !== undefined && utilitiesLine !== undefined
+      ? housingLine + utilitiesLine
+      : Math.round(numericIncome * 0.30);
+  const healthTransEst =
+    transportLine !== undefined && otherLine !== undefined
+      ? transportLine + otherLine
+      : Math.round(numericIncome * 0.15);
+  const baselineCost = benchmark?.total ?? (foodEst + shelterEst + healthTransEst);
   const buffer = numericIncome - baselineCost;
 
   return (
@@ -141,7 +161,7 @@ export const DesktopInsightCard: React.FC<DesktopInsightCardProps> = ({
               <span>NISR / FinScope Macro Lens</span>
             </span>
             <span className="text-[10px] bg-[#EAF5EE] px-2 py-0.5 rounded-full font-mono text-[#1E5E45] font-semibold">
-              Live NISR APIs
+              Official Statistics
             </span>
           </div>
 

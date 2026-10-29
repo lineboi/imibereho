@@ -120,7 +120,6 @@ export const QuickStartForm: React.FC<QuickStartFormProps> = ({
               <div className="absolute left-0 right-0 top-full mt-1.5 max-h-60 overflow-y-auto bg-white rounded-xl shadow-lg border border-[#DDD7CE] z-50 py-1 divide-y divide-gray-100">
                 <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[#7A8A80] bg-[#FAF8F5] flex items-center justify-between">
                   <span>Select Rwandan District</span>
-                  <span className="text-[10px] text-[#1E5E45] font-mono lowercase">GET /districts (live)</span>
                 </div>
                 {districtsList.map((item) => (
                   <button

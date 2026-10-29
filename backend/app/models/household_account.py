@@ -34,6 +34,7 @@ class HouseholdAccount(Base):
             "savings_buffer IS NULL OR savings_buffer BETWEEN 0 AND 100000000",
             name="savings_buffer_range",
         ),
+        CheckConstraint("role IN ('citizen', 'decision_maker')", name="role_known"),
     )
 
     id: Mapped[str] = mapped_column(String(30), primary_key=True)  # "usr_" + a ULID
@@ -45,6 +46,7 @@ class HouseholdAccount(Base):
     monthly_income: Mapped[int] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(3))
     preferred_language: Mapped[str] = mapped_column(String(2))
+    role: Mapped[str] = mapped_column(String(32), default="citizen", server_default="citizen")
     # Profile values register does not collect (contract §11.9): NULL until the household sets
     # them with PATCH /user/profile, never a default 0.
     planned_essentials: Mapped[int | None] = mapped_column(Integer)

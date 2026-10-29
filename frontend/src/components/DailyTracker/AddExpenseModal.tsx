@@ -36,13 +36,18 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       Other: 'other',
     };
 
+    const todayDateStr = new Intl.DateTimeFormat(language === 'RW' ? 'rw-RW' : 'en-US', {
+      day: 'numeric',
+      month: 'short',
+    }).format(new Date());
+
     onAddExpense({
       title: title.trim(),
       category,
       note: note.trim() || 'General expense',
       amount: numAmount,
       iconType: iconTypeMap[category] || 'other',
-      date: t.todayDatePill,
+      date: todayDateStr,
     });
 
     setTitle('');

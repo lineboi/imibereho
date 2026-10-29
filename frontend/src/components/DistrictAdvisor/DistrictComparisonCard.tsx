@@ -32,10 +32,17 @@ export const DistrictComparisonCard: React.FC<DistrictComparisonCardProps> = ({
 }) => {
   const t = ADVISOR_TRANSLATIONS[language];
 
-  const diffTotal = districtB.baselineTotal - districtA.baselineTotal;
+  const totalA = districtComparisonApi ? districtComparisonApi.districtA.total : districtA.baselineTotal;
+  const totalB = districtComparisonApi ? districtComparisonApi.districtB.total : districtB.baselineTotal;
+  const diffTotal = districtComparisonApi ? districtComparisonApi.variance.netDifference : (totalB - totalA);
   const isLower = diffTotal < 0;
   const absDiff = Math.abs(diffTotal);
-  const percentDiff = Math.round((absDiff / districtA.baselineTotal) * 100);
+  const percentDiff =
+    districtComparisonApi && districtComparisonApi.variance.percentageDifference !== null
+      ? Math.abs(Math.round(Number(districtComparisonApi.variance.percentageDifference)))
+      : totalA > 0
+      ? Math.round((absDiff / totalA) * 100)
+      : 0;
 
   // Maximum value for proportional bar calculation
   const maxCategoryAmount = Math.max(
@@ -90,7 +97,7 @@ export const DistrictComparisonCard: React.FC<DistrictComparisonCardProps> = ({
             {districtComparisonApi?.costOfLivingMultiplier && (
               <span className="bg-[#E7F3EC] text-[#1E5E45] text-[10.5px] font-semibold px-2 py-0.5 rounded-full border border-[#CCE2D4] inline-flex items-center gap-1">
                 <span>⚡ Cost Multiplier:</span>
-                <strong>{districtComparisonApi.costOfLivingMultiplier}x (Live API)</strong>
+                <strong>{districtComparisonApi.costOfLivingMultiplier}x</strong>
               </span>
             )}
           </div>
@@ -118,7 +125,7 @@ export const DistrictComparisonCard: React.FC<DistrictComparisonCardProps> = ({
               {districtA.districtName}
             </span>
             <div className="font-serif text-2xl sm:text-3xl font-bold text-[#143B2A] mt-0.5">
-              {districtA.baselineTotal.toLocaleString()}
+              {totalA.toLocaleString()}
               <span className="text-xs font-sans font-normal text-[#667A6E] ml-1">RWF</span>
             </div>
             <span className="text-[10.5px] text-[#718378] block mt-0.5">
@@ -132,7 +139,7 @@ export const DistrictComparisonCard: React.FC<DistrictComparisonCardProps> = ({
               {districtB.districtName}
             </span>
             <div className="font-serif text-2xl sm:text-3xl font-bold text-[#143B2A] mt-0.5">
-              {districtB.baselineTotal.toLocaleString()}
+              {totalB.toLocaleString()}
               <span className="text-xs font-sans font-normal text-[#667A6E] ml-1">RWF</span>
             </div>
             <span className="text-[10.5px] text-[#718378] block mt-0.5">
