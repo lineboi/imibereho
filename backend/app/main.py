@@ -23,6 +23,7 @@ from fastapi.routing import iter_route_contexts
 from starlette.routing import compile_path
 
 from app.api.router import api_router
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.config import Settings, Target, get_settings
 from app.core.constants import OPENAPI_VERSION, REQUEST_ID_HEADER
 from app.core.errors import register_exception_handlers
@@ -97,6 +98,9 @@ def create_app(
     app.state.readiness = readiness
 
     register_exception_handlers(app)
+    # Innermost of the three: a 413 still passes through CORS (so a browser can read it) and the
+    # request-context middleware (X-Request-ID), and no route sees an oversized body (H-1).
+    app.add_middleware(BodySizeLimitMiddleware, limit=settings.max_request_body_bytes)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

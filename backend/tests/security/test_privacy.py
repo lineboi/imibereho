@@ -75,6 +75,8 @@ ACCOUNT_COLUMNS: Final = frozenset(
         "currency", "preferred_language", "created_at",
         # Contract §11.9 (migration 0010): the rest of the PDF's GET profile, and its last change.
         "planned_essentials", "savings_buffer", "updated_at",
+        # Migration 0013: the workspace the household chose, citizen or decision_maker.
+        "role",
     }
 )  # fmt: skip
 

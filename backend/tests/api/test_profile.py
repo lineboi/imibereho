@@ -47,6 +47,8 @@ PDF_PROFILE_KEYS: Final = {
     "id", "district", "householdSize", "monthlyIncome", "plannedEssentials", "savingsBuffer",
     "preferredLanguage",
 }  # fmt: skip
+# Beyond the PDF: `role` picks the frontend workspace (migration 0013); it gates no route.
+PROFILE_KEYS: Final = PDF_PROFILE_KEYS | {"role"}
 
 
 def _client(settings: Settings, database: Database, secret: str | None) -> Iterator[TestClient]:
@@ -109,12 +111,12 @@ def test_get_profile_has_the_pdf_shape(client: TestClient, registered: dict[str,
     response = client.get(PROFILE, headers=auth(registered["token"]))
     assert response.status_code == 200
     data = raw_json(response)
-    assert set(data) == PDF_PROFILE_KEYS
+    assert set(data) == PROFILE_KEYS
     # Register does not collect plannedEssentials or savingsBuffer: null, never an invented 0.
     assert data == {
         "id": registered["user"]["id"], "district": "gasabo", "householdSize": 4,
         "monthlyIncome": 180000, "plannedEssentials": None, "savingsBuffer": None,
-        "preferredLanguage": "RW",
+        "preferredLanguage": "RW", "role": "citizen",
     }  # fmt: skip
     assert '"plannedEssentials":null' in response.text
 
@@ -136,10 +138,11 @@ def test_get_profile_after_the_pdf_values_are_set(
     patch = {"plannedEssentials": 150000, "savingsBuffer": 60000}
     assert client.patch(PROFILE, json=patch, headers=auth(token)).status_code == 200
     data = raw_json(client.get(PROFILE, headers=auth(token)))
-    assert {k: v for k, v in data.items() if k != "id"} == {
+    assert {k: v for k, v in data.items() if k not in {"id", "role"}} == {
         "district": "gasabo", "householdSize": 4, "monthlyIncome": 180000,
         "plannedEssentials": 150000, "savingsBuffer": 60000, "preferredLanguage": "RW",
     }  # fmt: skip
+    assert data["role"] == "citizen"  # not in the PDF; the default for a new account
 
 
 def test_get_profile_refuses_query_parameters(
@@ -176,7 +179,7 @@ def test_patch_changes_only_the_fields_sent(
     response = client.patch(PROFILE, json=patch, headers=auth(token))
     assert response.status_code == 200
     data = raw_json(response)
-    assert set(data) == PDF_PROFILE_KEYS
+    assert set(data) == PROFILE_KEYS
     assert data == {**before, **expected}
     # The response is what was stored, and a later GET agrees.
     assert raw_json(client.get(PROFILE, headers=auth(token))) == data
@@ -380,8 +383,8 @@ def test_openapi_documents_the_pdf_profile_and_the_bearer_scheme(client: TestCli
         "type": "http", "scheme": "bearer",
     }  # fmt: skip
     schemas = spec["components"]["schemas"]
-    assert set(schemas["ProfileResponse"]["properties"]) == PDF_PROFILE_KEYS
-    assert set(schemas["ProfilePatch"]["properties"]) == PDF_PROFILE_KEYS - {"id"}
+    assert set(schemas["ProfileResponse"]["properties"]) == PROFILE_KEYS
+    assert set(schemas["ProfilePatch"]["properties"]) == PROFILE_KEYS - {"id"}
     assert not schemas["ProfilePatch"].get("required")  # every PATCH field is optional
 
 

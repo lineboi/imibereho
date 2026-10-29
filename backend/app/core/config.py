@@ -18,6 +18,13 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 BACKEND_DIR: Final = Path(__file__).resolve().parents[2]
 ENV_FILE: Final = BACKEND_DIR / ".env"
 JWT_SECRET_MIN_LENGTH: Final = 32  # 256 bits of key material for HS256 (RFC 7518 §3.2)
+# Request bodies (contract §1.3, 413 `request-too-large`). The largest legitimate body is about
+# 5 KB (a tracker POST whose 240-character title and 560-character note are all JSON surrogate
+# escapes); 64 KiB leaves room for whitespace and new fields. The bounds stop a typo from
+# disabling the limit (0) or making it meaningless.
+MAX_REQUEST_BODY_BYTES_DEFAULT: Final = 65_536
+MAX_REQUEST_BODY_BYTES_MIN: Final = 1_024
+MAX_REQUEST_BODY_BYTES_MAX: Final = 1_048_576
 
 Environment = Literal["local", "ci", "production"]
 Target = Literal["dev", "test", "migrations", "production"]
@@ -67,6 +74,11 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:5173"]
     )
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    max_request_body_bytes: int = Field(
+        default=MAX_REQUEST_BODY_BYTES_DEFAULT,
+        ge=MAX_REQUEST_BODY_BYTES_MIN,
+        le=MAX_REQUEST_BODY_BYTES_MAX,
+    )
     # Local development only: permits a PostgreSQL superuser for target `dev` with
     # ENVIRONMENT=local on a local host (see app/db/guards.py). Refused outright elsewhere.
     allow_local_superuser: bool = False

@@ -5,7 +5,7 @@ Field names follow the PDF. Additions to the PDF shapes: `meta` on every respons
 drawdown fields. `scoreChange` is an integer (contract §1: numbers are never strings).
 """
 
-from typing import Literal
+from typing import Annotated, Final, Literal
 
 from pydantic import Field
 
@@ -60,10 +60,15 @@ class ResilienceShock(BodyModel):
     )
 
 
+# The catalogue has three levers and each may appear once, so a longer list is always invalid; the
+# bound also keeps a huge list from costing per-item work and errors (audit finding H-1).
+COPING_LEVERS_MAX: Final = 3
+
+
 class ResilienceSimulationRequest(BodyModel):
     baseline: Baseline
     shock: ResilienceShock
-    active_coping_levers: list[CopingLeverId]
+    active_coping_levers: Annotated[list[CopingLeverId], Field(max_length=COPING_LEVERS_MAX)]
 
 
 class ResilienceSimulationResult(ApiModel):
