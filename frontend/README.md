@@ -1,75 +1,47 @@
-# React + TypeScript + Vite
+# Imibereho — Frontend Application
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + TypeScript + Vite frontend client for the **Imibereho** Household Financial Resilience & Public Planning Portal.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Presentation & Testing Credentials
 
-## React Compiler
+Two pre-seeded testing accounts are configured in the PostgreSQL database for evaluation:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Account Type | Email / Login | Password | Database Role | Landing View |
+| :--- | :--- | :--- | :--- | :--- |
+| **Citizen Portal** | `citizen@imibereho.rw` | `Citizen2026!` | `citizen` | Household Tracker, Agro-Swaps, Resilience |
+| **Decision-Maker** | `planner@imibereho.rw` | `Planner2026!` | `decision_maker` | Macro Overview, 30-District Heatmap, Policy Simulator |
 
-## Expanding the ESLint configuration
+> **1-Click Demo Fill**: In the Sign-In modal, click either preset card to auto-fill these credentials without typing.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Key Modules & UI Structure
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Citizen Portal (`role: citizen`)
+- **Daily Tracker** ([`src/components/DailyTracker/`](src/components/DailyTracker/)): Safe-to-spend gauge, transaction logging, real PostgreSQL sync.
+- **District Advisor** ([`src/components/DistrictAdvisor/`](src/components/DistrictAdvisor/)): 30-district EICV7 benchmark comparison.
+- **Seasonal Agro-Swaps** ([`src/components/SeasonalAgroSwaps/`](src/components/SeasonalAgroSwaps/)): Affordable staple substitutions for food security.
+- **Resilience Simulator** ([`src/components/ResilienceSimulator/`](src/components/ResilienceSimulator/)): Household economic runway shock testing.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Government Decision-Maker Workspace (`role: decision_maker`)
+- **Macro Overview** ([`src/components/DecisionMaker/MacroOverviewView.tsx`](src/components/DecisionMaker/MacroOverviewView.tsx)): Live KPIs, 6-month trends, income source shares.
+- **District Heatmap** ([`src/components/DecisionMaker/DistrictHeatmapView.tsx`](src/components/DecisionMaker/DistrictHeatmapView.tsx)): 5x6 colored tile grid of all 30 districts, score bands, composite sub-indicators.
+- **Policy Simulator** ([`src/components/DecisionMaker/PolicySimulatorView.tsx`](src/components/DecisionMaker/PolicySimulatorView.tsx)): Fiscal cash transfer modeling and household balance sheet comparison.
+- **Data Methodology** ([`src/components/DecisionMaker/DataMethodologyView.tsx`](src/components/DecisionMaker/DataMethodologyView.tsx)): NISR, FinScope, and SAS official citations.
 
-```
+---
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+## Development & Build Commands
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+# Start development server
+npm run dev
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Run TypeScript & ESLint verification
+npm run lint
 
+# Production build
+npm run build
 ```

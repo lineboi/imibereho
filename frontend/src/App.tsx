@@ -251,7 +251,32 @@ export function App() {
         profile={profile}
         language={language}
         mode={modalMode}
-        onProceedToTracker={() => setCurrentPage('tracker')}
+        onProceedToTracker={() => {
+          setModalOpen(false);
+          const tkn = getStoredToken();
+          if (tkn) {
+            fetchUserProfile(tkn).then((res) => {
+              if (res) {
+                const capDistrict = res.district.charAt(0).toUpperCase() + res.district.slice(1);
+                setProfile((prev) => ({
+                  ...prev,
+                  id: res.id,
+                  district: capDistrict,
+                  householdSize: `${res.householdSize} people`,
+                  monthlyIncome: `${res.monthlyIncome.toLocaleString()} RWF`,
+                  plannedEssentials: res.plannedEssentials,
+                  savingsBuffer: res.savingsBuffer,
+                  preferredLanguage: res.preferredLanguage,
+                  role: res.role || 'citizen',
+                }));
+                if (res.preferredLanguage) {
+                  setLanguage(res.preferredLanguage);
+                }
+              }
+            });
+          }
+          setCurrentPage('tracker');
+        }}
       />
 
       {/* Household Profile Modal */}
