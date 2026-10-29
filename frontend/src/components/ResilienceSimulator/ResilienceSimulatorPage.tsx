@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Language, NavTab } from '../../types';
-import type { ShockType } from '../../data/mockResilienceData';
+import type { ShockType, ShockOption, CopingLever } from '../../data/mockResilienceData';
 import {
   SHOCK_OPTIONS,
   INNOVATIVE_COPING_LEVERS,
@@ -10,8 +10,10 @@ import {
   calculateHouseholdShock,
   calculateResilienceSimulation,
   fetchShocksCatalog,
+  fetchBudgetBenchmark,
   type HouseholdShockResponse,
   type ResilienceSimulationResponse,
+  type ShockCatalogResponse,
 } from '../../services/api';
 import { ScenarioSetupCard } from './ScenarioSetupCard';
 import { ShockResultCard } from './ShockResultCard';
@@ -27,6 +29,9 @@ interface ResilienceSimulatorPageProps {
   onNavigateHome: () => void;
   district?: string;
   householdSize?: string;
+  monthlyIncome?: string;
+  plannedEssentials?: number | null;
+  savingsBuffer?: number | null;
   activeTab: NavTab;
   onTabChange: (tab: NavTab) => void;
 }
@@ -36,25 +41,116 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
   onNavigateHome,
   district = 'Gasabo',
   householdSize = '4 people',
+  monthlyIncome,
+  plannedEssentials,
+  savingsBuffer,
   activeTab,
   onTabChange,
 }) => {
   const t = RESILIENCE_TRANSLATIONS[language];
+  const sizeNum = parseInt(householdSize.replace(/[^0-9]/g, ''), 10) || 4;
+  const parsedIncome = parseInt((monthlyIncome || '').replace(/[^0-9]/g, ''), 10) || 0;
+
+  // Household Baseline Parameters from PostgreSQL database
+  const [baseMonthlyIncome, setBaseMonthlyIncome] = useState<number>(
+    parsedIncome > 0 ? parsedIncome : 500000
+  );
+  const [basePlannedExpenses, setBasePlannedExpenses] = useState<number>(
+    plannedEssentials && plannedEssentials > 0 ? plannedEssentials : 250000
+  );
+  const [availableSavings, setAvailableSavings] = useState<number>(
+    savingsBuffer && savingsBuffer > 0 ? savingsBuffer : 250000
+  );
 
   // Core Scenario State
   const [shockType, setShockType] = useState<ShockType>('income_drop');
   const [reductionPct, setReductionPct] = useState<number>(20);
   const [durationMonths, setDurationMonths] = useState<number>(3);
-  const [availableSavings, setAvailableSavings] = useState<number>(60000);
-
-  // Household Baseline Parameters (Matches project contract)
-  const baseMonthlyIncome = 180000;
-  const basePlannedExpenses = 150000;
 
   // Innovative Action Levers State
   const [activeLeverIds, setActiveLeverIds] = useState<string[]>([]);
+  const [shocksCatalog, setShocksCatalog] = useState<ShockCatalogResponse | null>(null);
   const [apiShockResult, setApiShockResult] = useState<HouseholdShockResponse | null>(null);
   const [backendSimulationResult, setBackendSimulationResult] = useState<ResilienceSimulationResponse | null>(null);
+
+  // Live database baseline sync: GET /api/v1/budget-benchmarks
+  useEffect(() => {
+    let isMounted = true;
+    fetchBudgetBenchmark(district, sizeNum).then((bench) => {
+      if (!isMounted || !bench) return;
+      if (!plannedEssentials) {
+        setBasePlannedExpenses(bench.total);
+      }
+      if (!parsedIncome) {
+        setBaseMonthlyIncome(Math.round(bench.total * 1.15));
+      }
+      if (!savingsBuffer) {
+        setAvailableSavings(Math.round(bench.total * 0.4));
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [district, sizeNum, plannedEssentials, parsedIncome, savingsBuffer]);
+
+  const handleResetBaseline = () => {
+    fetchBudgetBenchmark(district, sizeNum).then((bench) => {
+      if (!bench) return;
+      setBasePlannedExpenses(bench.total);
+      setBaseMonthlyIncome(Math.round(bench.total * 1.15));
+      setAvailableSavings(Math.round(bench.total * 0.4));
+    });
+  };
+
+  // Load official shock catalog on mount: GET /api/v1/shocks/catalog
+  useEffect(() => {
+    let isMounted = true;
+    fetchShocksCatalog().then((cat) => {
+      if (isMounted && cat) setShocksCatalog(cat);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Dynamic Shocks from database catalog
+  const dynamicShockOptions: ShockOption[] = shocksCatalog?.items
+    ? shocksCatalog.items.map((it) => {
+        const fallback = SHOCK_OPTIONS.find((s) => s.id === it.id);
+        return {
+          id: it.id as ShockType,
+          labelEn: it.title,
+          labelRw: fallback?.labelRw || it.title,
+          descriptionEn: fallback?.descriptionEn || it.title,
+          descriptionRw: fallback?.descriptionRw || it.title,
+          defaultAmount: it.defaultAmount ?? undefined,
+          isLumpSum: it.isLumpSum,
+        };
+      })
+    : SHOCK_OPTIONS;
+
+  // Dynamic Coping Levers from database catalog
+  const dynamicCopingLevers: CopingLever[] = shocksCatalog?.copingLevers
+    ? shocksCatalog.copingLevers.map((cl) => {
+        const isOneOff = cl.kind === 'one_off_support';
+        return {
+          id: cl.id,
+          titleEn: cl.title,
+          titleRw:
+            cl.id === 'trim_non_essentials'
+              ? 'Kugabanya ibitari ngombwa'
+              : cl.id === 'seasonal_agro_swaps'
+              ? 'Ibihingwa by’amazi n’imyaka'
+              : 'Amafaranga y’Ikimina cyangwa Ubwizigame',
+          subEn: isOneOff ? 'Community rotational fund payout or 0% mutual fund loan.' : 'Reduce flexible household spending.',
+          subRw: isOneOff ? 'Kwakira amafaranga y’ubwizigame bwo mu kimina cy’abaturanyi.' : 'Guhagarika ibinezeza by’akanya gato.',
+          type: isOneOff ? ('lump_sum_aid' as const) : ('monthly_reduction' as const),
+          monthlySavings: isOneOff ? 0 : cl.amount,
+          oneTimeBufferBoost: isOneOff ? cl.amount : 0,
+          iconType: cl.id === 'trim_non_essentials' ? 'trim' : cl.id === 'seasonal_agro_swaps' ? 'swap' : 'tontine',
+        };
+      })
+    : INNOVATIVE_COPING_LEVERS;
 
   // Directly call live backend calculation endpoint: POST /api/v1/calculations/household-shock
   useEffect(() => {
@@ -74,23 +170,19 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
     return () => {
       ignore = true;
     };
-  }, [shockType, reductionPct, durationMonths, availableSavings]);
-
-  // Load official shock catalog on mount: GET /api/v1/shocks/catalog
-  useEffect(() => {
-    fetchShocksCatalog();
-  }, []);
+  }, [shockType, reductionPct, durationMonths, availableSavings, baseMonthlyIncome, basePlannedExpenses]);
 
   // Directly call live full simulation engine: POST /api/v1/calculations/resilience-simulation
   useEffect(() => {
     let ignore = false;
     const validLevers = activeLeverIds.filter((id) =>
       ['trim_non_essentials', 'seasonal_agro_swaps', 'ibimina_tontine'].includes(id)
-    );
+    ) as ('trim_non_essentials' | 'seasonal_agro_swaps' | 'ibimina_tontine')[];
+
     const apiShockType: 'income_drop' | 'medical_emergency' | 'school_fees' =
-      shockType === 'medical_clinic'
+      shockType === 'medical_emergency' || shockType === 'medical_clinic'
         ? 'medical_emergency'
-        : shockType === 'school_term'
+        : shockType === 'school_fees' || shockType === 'school_term'
         ? 'school_fees'
         : 'income_drop';
 
@@ -117,7 +209,7 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
     return () => {
       ignore = true;
     };
-  }, [shockType, reductionPct, durationMonths, availableSavings, activeLeverIds]);
+  }, [shockType, reductionPct, durationMonths, availableSavings, activeLeverIds, baseMonthlyIncome, basePlannedExpenses]);
 
   const handleToggleLever = (leverId: string) => {
     setActiveLeverIds((prev) =>
@@ -197,11 +289,15 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
       : '10';
 
   // Resilience Health Score (0 - 100)
-  const baselineScore = Math.max(45, Math.min(75, 70 - Math.round((rawGap / 2000))));
   const activeScore =
     backendSimulationResult
       ? backendSimulationResult.resilienceScore
-      : Math.min(95, baselineScore + activeLeverIds.length * 7 + (netGap === 0 ? 8 : 0));
+      : Math.max(45, Math.min(95, 70 - Math.round(rawGap / 2000) + activeLeverIds.length * 7));
+
+  const baselineScore =
+    backendSimulationResult
+      ? Math.max(0, backendSimulationResult.resilienceScore - backendSimulationResult.scoreChange)
+      : Math.max(45, Math.min(75, 70 - Math.round(rawGap / 2000)));
 
   return (
     <div className="flex-1 flex flex-col justify-between w-full">
@@ -229,22 +325,11 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
             {t.subheadline}
           </p>
 
-          {/* Household Tag Pill & Backend Live Connection */}
+          {/* Household Tag Pill */}
           <div className="flex flex-wrap items-center gap-2 mt-1">
             <span className="bg-[#E4ECE5] text-[#244E38] text-xs font-semibold px-3 py-1 rounded-full border border-[#CCE2D3]">
               {district} · {householdSize} · {language === 'RW' ? 'Urugo rw’icyitegererezo' : 'Demo household'}
             </span>
-            {backendSimulationResult ? (
-              <span className="bg-[#EBF5EE] text-[#1E5E45] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#D0E5D8] flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#1E5E45] animate-pulse" />
-                <span>Backend: POST /calculations/resilience-simulation (Score {backendSimulationResult.resilienceScore}/100)</span>
-              </span>
-            ) : apiShockResult ? (
-              <span className="bg-[#EBF5EE] text-[#1E5E45] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#D0E5D8] flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#1E5E45] animate-pulse" />
-                <span>Backend: POST /api/v1/calculations/household-shock (200 OK)</span>
-              </span>
-            ) : null}
           </div>
         </div>
 
@@ -258,7 +343,13 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
           onDurationMonthsChange={setDurationMonths}
           availableSavings={availableSavings}
           onSavingsChange={setAvailableSavings}
+          baseMonthlyIncome={baseMonthlyIncome}
+          onBaseMonthlyIncomeChange={setBaseMonthlyIncome}
+          basePlannedExpenses={basePlannedExpenses}
+          onBasePlannedExpensesChange={setBasePlannedExpenses}
+          onResetBaselineToBenchmark={handleResetBaseline}
           language={language}
+          shockOptions={dynamicShockOptions}
         />
 
         {/* Card 2: Illustrative Result · Monthly (Forest Green Card) */}
@@ -282,6 +373,7 @@ export const ResilienceSimulatorPage: React.FC<ResilienceSimulatorPageProps> = (
           rawGap={rawGap}
           netGap={netGap}
           language={language}
+          copingLevers={dynamicCopingLevers}
         />
 
         {/* Month-by-Month Savings Timeline */}

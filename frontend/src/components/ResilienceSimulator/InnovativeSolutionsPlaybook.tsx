@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Language } from '../../types';
+import type { CopingLever } from '../../data/mockResilienceData';
 import {
   INNOVATIVE_COPING_LEVERS,
   RESILIENCE_TRANSLATIONS,
@@ -20,6 +21,7 @@ interface InnovativeSolutionsPlaybookProps {
   rawGap: number;
   netGap: number;
   language: Language;
+  copingLevers?: CopingLever[];
 }
 
 export const InnovativeSolutionsPlaybook: React.FC<InnovativeSolutionsPlaybookProps> = ({
@@ -28,6 +30,7 @@ export const InnovativeSolutionsPlaybook: React.FC<InnovativeSolutionsPlaybookPr
   rawGap,
   netGap,
   language,
+  copingLevers = INNOVATIVE_COPING_LEVERS,
 }) => {
   const t = RESILIENCE_TRANSLATIONS[language];
 
@@ -77,7 +80,7 @@ export const InnovativeSolutionsPlaybook: React.FC<InnovativeSolutionsPlaybookPr
 
       {/* Levers List with Toggles */}
       <div className="flex flex-col divide-y divide-[#F2EFE8]">
-        {INNOVATIVE_COPING_LEVERS.map((lever) => {
+        {copingLevers.map((lever) => {
           const isActive = activeLeverIds.includes(lever.id);
 
           return (

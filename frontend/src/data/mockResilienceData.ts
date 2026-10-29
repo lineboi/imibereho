@@ -1,5 +1,8 @@
 export type ShockType =
   | 'income_drop'
+  | 'medical_emergency'
+  | 'school_fees'
+  | 'harvest_disruption'
   | 'medical_clinic'
   | 'food_inflation'
   | 'school_term'

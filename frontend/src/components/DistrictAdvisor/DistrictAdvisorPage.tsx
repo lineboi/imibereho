@@ -45,6 +45,7 @@ interface DistrictAdvisorPageProps {
   onNavigateHome: () => void;
   defaultDistrict?: string;
   defaultHouseholdSize?: string;
+  monthlyIncome?: string;
   activeTab: NavTab;
   onTabChange: (tab: NavTab) => void;
 }
@@ -54,6 +55,7 @@ export const DistrictAdvisorPage: React.FC<DistrictAdvisorPageProps> = ({
   onNavigateHome,
   defaultDistrict = 'Gasabo',
   defaultHouseholdSize = '4',
+  monthlyIncome,
   activeTab,
   onTabChange,
 }) => {
@@ -94,8 +96,9 @@ export const DistrictAdvisorPage: React.FC<DistrictAdvisorPageProps> = ({
 
   const formattedHouseholdSize = formatHouseholdSize(householdSizeNumber, language);
 
-  // Household monthly income for Buffer Runway Feasibility (default 180,000 RWF)
-  const [householdIncome, setHouseholdIncome] = useState<number>(180000);
+  const parsedIncome = parseInt((monthlyIncome || '').replace(/[^0-9]/g, ''), 10) || 180000;
+  // Household monthly income for Buffer Runway Feasibility
+  const [householdIncome, setHouseholdIncome] = useState<number>(parsedIncome);
 
   // Active Stress-Test Scenario
   const [stressScenario, setStressScenario] = useState<StressTestScenario>('none');
@@ -111,7 +114,6 @@ export const DistrictAdvisorPage: React.FC<DistrictAdvisorPageProps> = ({
   const [stressTestApi, setStressTestApi] = useState<StressTestResponse | null>(null);
   const [financialInclusionA, setFinancialInclusionA] = useState<DistrictFinancialInclusionItem | null>(null);
   const [policyModalOpen, setPolicyModalOpen] = useState(false);
-  const [isBackendLive, setIsBackendLive] = useState<boolean>(false);
 
   // Live call to GET /api/v1/budget-benchmarks, /district-vulnerability, /calculations/district-comparison, and /nisr/financial-inclusion/districts
   useEffect(() => {
@@ -126,7 +128,6 @@ export const DistrictAdvisorPage: React.FC<DistrictAdvisorPageProps> = ({
       if (!isMounted) return;
       if (benchA) {
         setBackendBenchmarkA(benchA);
-        setIsBackendLive(true);
       }
       if (benchB) setBackendBenchmarkB(benchB);
       if (vuln) setVulnerabilityA(vuln);
@@ -243,32 +244,26 @@ export const DistrictAdvisorPage: React.FC<DistrictAdvisorPageProps> = ({
             {t.subheadline}
           </p>
 
-          {/* Live Backend Connection Indicator */}
-          {isBackendLive && (
-            <div className="flex flex-wrap items-center gap-2 mt-1">
-              <span className="bg-[#EBF5EE] text-[#1E5E45] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#D0E5D8] flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#1E5E45] animate-pulse" />
-                <span>Backend: GET /budget-benchmarks & /calculations/district-comparison (200 OK)</span>
+          {/* District Context & Policy Actions */}
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            {vulnerabilityA && (
+              <span className="bg-[#FAF3E8] text-[#925B1D] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#E9D9C3]">
+                {vulnerabilityA.name} Vulnerability: {vulnerabilityA.score}/100 ({vulnerabilityA.band})
               </span>
-              {vulnerabilityA && (
-                <span className="bg-[#FAF3E8] text-[#925B1D] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#E9D9C3]">
-                  {vulnerabilityA.name} Vulnerability: {vulnerabilityA.score}/100 ({vulnerabilityA.band})
-                </span>
-              )}
-              {financialInclusionA && (
-                <span className="bg-[#F0F5FA] text-[#225785] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#D0E2F0]">
-                  FinScope 2024 ({financialInclusionA.name}): Banked {financialInclusionA.bankedPct}% · Non-Bank Formal {financialInclusionA.otherFormalNonBankPct}% · Excluded {financialInclusionA.excludedPct}%
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => setPolicyModalOpen(true)}
-                className="bg-[#1E5E45] hover:bg-[#164835] text-white text-[11px] font-semibold px-2.5 py-0.5 rounded-full transition-colors cursor-pointer shadow-xs"
-              >
-                Simulate Policy Transfers &rarr;
-              </button>
-            </div>
-          )}
+            )}
+            {financialInclusionA && (
+              <span className="bg-[#F0F5FA] text-[#225785] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#D0E2F0]">
+                FinScope 2024 ({financialInclusionA.name}): Banked {financialInclusionA.bankedPct}% · Non-Bank Formal {financialInclusionA.otherFormalNonBankPct}% · Excluded {financialInclusionA.excludedPct}%
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setPolicyModalOpen(true)}
+              className="bg-[#1E5E45] hover:bg-[#164835] text-white text-[11px] font-semibold px-2.5 py-0.5 rounded-full transition-colors cursor-pointer shadow-xs"
+            >
+              Simulate Policy Transfers &rarr;
+            </button>
+          </div>
         </div>
 
         {/* Mode Switcher Tabs */}

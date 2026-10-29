@@ -27,13 +27,6 @@ export const SmartMarketChecklist: React.FC<SmartMarketChecklistProps> = ({
   const t = AGRO_SWAPS_TRANSLATIONS[language];
   const [copied, setCopied] = useState<boolean>(false);
   const [checklistApi, setChecklistApi] = useState<ShoppingChecklistResponse | null>(null);
-
-  useEffect(() => {
-    fetchShoppingChecklist(district, 4).then((res) => {
-      if (res) setChecklistApi(res);
-    });
-  }, [district]);
-
   const [items, setItems] = useState<ChecklistItem[]>([
     {
       id: 'item-1',
@@ -87,15 +80,40 @@ export const SmartMarketChecklist: React.FC<SmartMarketChecklistProps> = ({
     },
   ]);
 
+  useEffect(() => {
+    let active = true;
+    fetchShoppingChecklist(district, 4).then((res) => {
+      if (!active || !res) return;
+      setChecklistApi(res);
+      if (res.items && res.items.length > 0) {
+        setItems(
+          res.items.map((it, idx) => ({
+            id: `api-item-${idx}`,
+            nameEn: it.name,
+            nameRw: it.name,
+            qtyEn: it.quantity,
+            qtyRw: it.quantity,
+            estPrice: it.estPrice,
+            isSeasonalSwap: it.isSwap,
+            checked: false,
+          }))
+        );
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [district]);
+
   const toggleItem = (id: string) => {
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, checked: !item.checked } : item))
     );
   };
 
-  const totalEstPrice = items.reduce((sum, item) => sum + item.estPrice, 0);
-  const unoptimizedBasketPrice = 8650; // standard market basket using imported rice & beef
-  const basketSavings = unoptimizedBasketPrice - totalEstPrice;
+  const totalEstPrice = checklistApi?.totalEstimatedBasket ?? items.reduce((sum, item) => sum + item.estPrice, 0);
+  const unoptimizedBasketPrice = checklistApi?.unoptimizedBasket ?? 8650;
+  const basketSavings = checklistApi?.estimatedSavings ?? Math.max(0, unoptimizedBasketPrice - totalEstPrice);
 
   const handleCopyList = () => {
     const header =
@@ -124,16 +142,9 @@ export const SmartMarketChecklist: React.FC<SmartMarketChecklistProps> = ({
             <ShoppingBag className="w-4 h-4" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-serif text-base sm:text-lg font-normal text-[#123927]">
-                {t.smartMarketChecklistTitle}
-              </h3>
-              {checklistApi && (
-                <span className="text-[10px] bg-[#EAF5EE] text-[#1E5E45] px-2 py-0.5 rounded-full border border-[#D0E5D8] font-mono hidden sm:inline">
-                  GET /market/shopping-checklist (200 OK)
-                </span>
-              )}
-            </div>
+            <h3 className="font-serif text-base sm:text-lg font-normal text-[#123927]">
+              {t.smartMarketChecklistTitle}
+            </h3>
             <p className="text-[12px] text-[#55695D] leading-tight">
               {t.smartMarketChecklistSub}
             </p>

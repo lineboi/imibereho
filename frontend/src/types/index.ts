@@ -1,8 +1,16 @@
 export type Language = 'EN' | 'RW';
 
-export type AppPage = 'landing' | 'tracker';
+export type UserRole = 'citizen' | 'decision_maker';
+
+export type AppPage = 'landing' | 'tracker' | 'decision_maker';
 
 export type NavTab = 'tracker' | 'district_advisor' | 'resilience' | 'agro_swaps';
+
+export type DecisionMakerTab =
+  | 'macro_overview'
+  | 'district_heatmap'
+  | 'policy_simulator'
+  | 'data_methodology';
 
 export interface District {
   id: string;
@@ -11,10 +19,15 @@ export interface District {
 }
 
 export interface HouseholdProfile {
+  id?: string;
   district: string;
   householdSize: string;
   monthlyIncome: string;
   currency: string;
+  plannedEssentials?: number | null;
+  savingsBuffer?: number | null;
+  preferredLanguage?: 'EN' | 'RW';
+  role?: UserRole;
   updatedAt?: string;
 }
 

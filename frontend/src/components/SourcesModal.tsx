@@ -57,14 +57,9 @@ export const SourcesModal: React.FC<SourcesModalProps> = ({
               <BookOpen className="w-4 h-4 text-[#C4E5D4]" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-base leading-tight">
-                  {isRw ? 'Inkomoko y’Imibare n’Ubushakashatsi' : 'Official Statistics Provenance & Data Sources'}
-                </h3>
-                <span className="text-[10px] bg-white/20 font-mono px-2 py-0.5 rounded-full">
-                  GET /nisr/sources
-                </span>
-              </div>
+              <h3 className="font-semibold text-base leading-tight">
+                {isRw ? 'Inkomoko y’Imibare n’Ubushakashatsi' : 'Official Statistics Provenance & Data Sources'}
+              </h3>
               <p className="text-xs text-[#C4E5D4] mt-0.5">
                 {isRw
                   ? 'Ibyegeranyo bya NISR, Access to Finance Rwanda n’ibipimo by’igihugu'

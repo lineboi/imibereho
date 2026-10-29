@@ -62,14 +62,9 @@ export const PolicyScenarioModal: React.FC<PolicyScenarioModalProps> = ({
               <Building2 className="w-5 h-5 text-[#C4E5D4]" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-base leading-tight">
-                  {isRw ? 'Igereranyo rya Politiki y’Inkunga' : 'Policy Cash Transfer Scenario Simulator'}
-                </h3>
-                <span className="text-[10px] bg-white/20 font-mono px-2 py-0.5 rounded-full">
-                  POST /calculations/policy-scenario
-                </span>
-              </div>
+              <h3 className="font-semibold text-base leading-tight">
+                {isRw ? 'Igereranyo rya Politiki y’Inkunga' : 'Policy Cash Transfer Scenario Simulator'}
+              </h3>
               <p className="text-xs text-[#C4E5D4] mt-0.5">
                 {isRw
                   ? 'Isuzuma ry’ingaruka z’inkunga y’amafaranga ku miryango yahuye n’ibiza'

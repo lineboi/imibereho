@@ -75,11 +75,6 @@ export const SeasonalCalendarCard: React.FC<SeasonalCalendarCardProps> = ({ lang
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {calendarApi && (
-            <span className="text-[10px] bg-[#EAF5EE] text-[#1E5E45] px-2 py-0.5 rounded-full border border-[#D0E5D8] font-mono hidden sm:inline">
-              GET /agro/harvest-calendar (200 OK)
-            </span>
-          )}
           <span className="bg-[#E7F3EC] text-[#1E5E45] text-[11px] font-bold px-2 py-0.5 rounded-full border border-[#CCE2D4]">
             🇷🇼 MINAGRI Cycle
           </span>
@@ -141,6 +136,21 @@ export const SeasonalCalendarCard: React.FC<SeasonalCalendarCardProps> = ({ lang
           );
         })}
       </div>
+      {/* Harvest Highlights from NISR SAS 2025 */}
+      {calendarApi?.harvestHighlights && calendarApi.harvestHighlights.length > 0 && (
+        <div className="bg-[#FAF8F3] border border-[#E8E2D6] rounded-xl p-3 flex flex-col gap-1.5 text-xs text-[#3E5547]">
+          <span className="font-semibold text-[11px] uppercase tracking-wider text-[#1E5E45]">
+            {language === 'RW' ? 'Umusaruro w’Igihembwe cya A (NISR SAS 2025)' : 'Official Season A Production Highlights (NISR SAS 2025)'}
+          </span>
+          <div className="flex flex-col gap-1">
+            {calendarApi.harvestHighlights.map((hl, i) => (
+              <span key={i} className="text-[11.5px] text-[#4F6456]">
+                • {hl}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

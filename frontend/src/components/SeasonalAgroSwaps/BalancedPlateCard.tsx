@@ -25,31 +25,38 @@ export const BalancedPlateCard: React.FC<BalancedPlateCardProps> = ({ language }
     return <Heart className="w-3.5 h-3.5 text-[#7C3AED]" />;
   };
 
+  const componentsList = plateGuidance?.plateComponents
+    ? plateGuidance.plateComponents.map((pc) => {
+        const fallback = BALANCED_PLATE_COMPONENTS.find((b) => b.code === pc.code);
+        return {
+          code: pc.code,
+          nameEn: pc.name,
+          nameRw: fallback?.nameRw || pc.name,
+          proportionPct: pc.proportionPct,
+          examplesEn: pc.examples.join(', '),
+          examplesRw: fallback?.examplesRw || pc.examples.join(', '),
+        };
+      })
+    : BALANCED_PLATE_COMPONENTS;
+
   return (
     <div className="bg-[#EBF2EC] rounded-2xl border border-[#D1E3D7] p-4 sm:p-5 flex flex-col gap-3.5 shadow-2xs">
-      {/* Title & Description Matching the Uploaded Design Mockup */}
+      {/* Title & Description Matching Design */}
       <div className="flex items-start gap-2.5">
         <div className="w-7 h-7 rounded-lg bg-[#DEECE2] text-[#1E5E45] flex items-center justify-center shrink-0 mt-0.5 border border-[#C5DDD0]">
           <Utensils className="w-4 h-4" />
         </div>
         <div>
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="font-serif text-lg sm:text-xl font-normal text-[#123927] leading-snug">
-              {language === 'RW' ? t.balancedPlateTitle : 'Keep variety on the plate.'}
-            </h3>
-            {plateGuidance && (
-              <span className="text-[10px] bg-[#EAF5EE] text-[#1E5E45] px-2 py-0.5 rounded-full border border-[#D0E5D8] font-mono shrink-0">
-                GET /nutrition/indyo-yuzuye (200 OK)
-              </span>
-            )}
-          </div>
+          <h3 className="font-serif text-lg sm:text-xl font-normal text-[#123927] leading-snug">
+            {language === 'RW' ? t.balancedPlateTitle : 'Keep variety on the plate.'}
+          </h3>
           <p className="text-[13px] text-[#3E5C4B] leading-relaxed mt-1">
             {language === 'RW' ? t.balancedPlateSub : t.balancedPlateSub}
           </p>
         </div>
       </div>
 
-      {/* Innovative Rwandan "Indyo Yuzuye" 3-Part Plate Visualizer */}
+      {/* Rwandan "Indyo Yuzuye" 3-Part Plate Visualizer */}
       <div className="bg-white/80 backdrop-blur-xs rounded-xl p-3 border border-[#CFE3D5] flex flex-col gap-2.5">
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold text-[#183928] flex items-center gap-1.5">
@@ -83,7 +90,7 @@ export const BalancedPlateCard: React.FC<BalancedPlateCardProps> = ({ language }
 
         {/* Interactive Segment Buttons */}
         <div className="grid grid-cols-3 gap-1.5 pt-0.5">
-          {BALANCED_PLATE_COMPONENTS.map((comp) => {
+          {componentsList.map((comp) => {
             const isSelected = selectedComponent === comp.code;
             return (
               <button
@@ -110,7 +117,7 @@ export const BalancedPlateCard: React.FC<BalancedPlateCardProps> = ({ language }
 
         {/* Selected Component Detail Box */}
         {(() => {
-          const activeComp = BALANCED_PLATE_COMPONENTS.find((c) => c.code === selectedComponent)!;
+          const activeComp = componentsList.find((c) => c.code === selectedComponent) || componentsList[0];
           return (
             <div className="bg-[#FAFDFB] rounded-lg p-2.5 border border-[#D5E7DC] text-xs">
               <span className="font-semibold text-[#1B4332] block">
@@ -128,9 +135,10 @@ export const BalancedPlateCard: React.FC<BalancedPlateCardProps> = ({ language }
       <div className="flex items-start gap-2 text-xs text-[#2A533C]">
         <Info className="w-3.5 h-3.5 text-[#1E5E45] shrink-0 mt-0.5" />
         <span className="text-[11.5px] leading-relaxed">
-          {language === 'RW'
-            ? 'Inama y’Igikoni: Gutekera ibijumba rimwe n’ibishyimbo mu nkono imwe bizigama 35% by’amakara cyangwa gazi yo guteka.'
-            : 'Kitchen Fuel Tip: Boiling sweet potatoes alongside beans in the same pot cuts charcoal consumption by 35% while keeping all nutrients intact.'}
+          {plateGuidance?.energyTip ||
+            (language === 'RW'
+              ? 'Inama y’Igikoni: Gutekera ibijumba rimwe n’ibishyimbo mu nkono imwe bizigama 35% by’amakara cyangwa gazi yo guteka.'
+              : 'Kitchen Fuel Tip: Boiling sweet potatoes alongside beans in the same pot cuts charcoal consumption by 35% while keeping all nutrients intact.')}
         </span>
       </div>
     </div>

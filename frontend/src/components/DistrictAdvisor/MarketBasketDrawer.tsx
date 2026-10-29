@@ -79,9 +79,6 @@ export const MarketBasketDrawer: React.FC<MarketBasketDrawerProps> = ({
                   Ref. Rent: <strong>{basketDetails.referenceRentIndex.toLocaleString()} RWF</strong> · Ref. Transit: <strong>{basketDetails.referenceTransitPass.toLocaleString()} RWF</strong>
                 </span>
               </div>
-              <span className="text-[10px] bg-[#EAF5EE] text-[#1E5E45] px-2 py-0.5 rounded-full font-mono font-medium self-start sm:self-auto shrink-0">
-                GET /districts/{districtA.districtId}/basket-details (Live 200 OK)
-              </span>
             </div>
           )}
 

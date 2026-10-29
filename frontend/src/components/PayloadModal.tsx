@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { X, Check, Copy, Code2, Sparkles, TrendingUp, UserCheck, KeyRound, ArrowRight, ShieldCheck, AlertCircle, LogIn, UserPlus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Code2, Sparkles, TrendingUp, UserCheck, KeyRound, ArrowRight, AlertCircle, LogIn, UserPlus, ShieldCheck } from 'lucide-react';
 import type { HouseholdProfile, Language } from '../types';
 import { TRANSLATIONS } from '../data/mockData';
-import { registerHousehold, loginHousehold, getStoredToken } from '../services/api';
+import { registerHousehold, loginHousehold, getStoredToken, fetchBudgetBenchmark } from '../services/api';
 
 interface PayloadModalProps {
   isOpen: boolean;
@@ -21,22 +21,34 @@ export const PayloadModal: React.FC<PayloadModalProps> = ({
   mode,
   onProceedToTracker,
 }) => {
-  const [copied, setCopied] = useState(false);
-  const [viewMode, setViewMode] = useState<'form' | 'json'>(mode === 'continue' ? 'json' : 'form');
-  const [identifier, setIdentifier] = useState('+250788123456');
-  const [password, setPassword] = useState('Password2026!');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccess, setAuthSuccess] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(getStoredToken());
+  const [dbBenchmarkCost, setDbBenchmarkCost] = useState<number | null>(null);
+
+  const numericIncome = parseInt(profile.monthlyIncome.replace(/[^0-9]/g, ''), 10) || 180000;
+  const householdCount = parseInt(profile.householdSize, 10) || 4;
+
+  useEffect(() => {
+    let active = true;
+    if (isOpen) {
+      fetchBudgetBenchmark(profile.district, householdCount).then((res) => {
+        if (active && res) setDbBenchmarkCost(res.total);
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [isOpen, profile.district, householdCount]);
 
   const t = TRANSLATIONS[language];
 
   if (!isOpen) return null;
 
-  const numericIncome = parseInt(profile.monthlyIncome.replace(/[^0-9]/g, ''), 10) || 180000;
-  const householdCount = parseInt(profile.householdSize, 10) || 4;
-  const estimatedCost = Math.round(householdCount * 38000 + 45000);
+  const estimatedCost = dbBenchmarkCost ?? Math.round(householdCount * 38000 + 45000);
   const balance = numericIncome - estimatedCost;
   const resilienceRatio = Math.min(100, Math.max(15, Math.round((numericIncome / estimatedCost) * 60)));
 
@@ -103,38 +115,6 @@ export const PayloadModal: React.FC<PayloadModalProps> = ({
     }
   };
 
-  const payloadObject = {
-    endpoint_target: actionConfig.endpoint,
-    action_type: mode,
-    status: 'connected_live_backend',
-    household_profile: {
-      district: profile.district,
-      household_size: householdCount,
-      household_size_raw: profile.householdSize,
-      monthly_income_rwf: numericIncome,
-      currency: 'RWF',
-      timestamp: new Date().toISOString(),
-    },
-    client_metadata: {
-      locale: language,
-      platform: 'web',
-    },
-    computed_preview: {
-      estimated_baseline_cost_rwf: estimatedCost,
-      estimated_monthly_buffer_rwf: balance,
-      resilience_health_index: `${resilienceRatio}%`,
-      recommended_buffer_months: balance > 0 ? 3 : 1,
-    },
-  };
-
-  const jsonString = JSON.stringify(payloadObject, null, 2);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(jsonString);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full max-w-2xl bg-[#FAF8F5] rounded-2xl shadow-2xl border border-[#DDD7CE] overflow-hidden flex flex-col max-h-[90vh]">
@@ -149,7 +129,7 @@ export const PayloadModal: React.FC<PayloadModalProps> = ({
                 {actionConfig.label}
               </h3>
               <p className="text-xs text-[#C4E5D4] mt-0.5">
-                FastAPI Live Endpoint: {actionConfig.endpoint}
+                Secure Account Access
               </p>
             </div>
           </div>
@@ -217,36 +197,8 @@ export const PayloadModal: React.FC<PayloadModalProps> = ({
             </div>
           </div>
 
-          {/* Tabs: Interactive Live Auth Form vs Raw JSON */}
+          {/* Form View for Auth */}
           {mode !== 'continue' && (
-            <div className="flex border-b border-[#E0DBD0] text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setViewMode('form')}
-                className={`py-2 px-3 border-b-2 cursor-pointer transition-colors ${
-                  viewMode === 'form'
-                    ? 'border-[#1E5E45] text-[#1E5E45]'
-                    : 'border-transparent text-[#6D8074] hover:text-[#183928]'
-                }`}
-              >
-                Live Interactive Auth
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('json')}
-                className={`py-2 px-3 border-b-2 cursor-pointer transition-colors ${
-                  viewMode === 'json'
-                    ? 'border-[#1E5E45] text-[#1E5E45]'
-                    : 'border-transparent text-[#6D8074] hover:text-[#183928]'
-                }`}
-              >
-                Inspect API Payload JSON
-              </button>
-            </div>
-          )}
-
-          {/* Form View for Live Auth */}
-          {viewMode === 'form' && mode !== 'continue' ? (
             <form onSubmit={handleAuthSubmit} className="bg-white p-5 rounded-xl border border-[#E3DED4] space-y-4">
               <div className="text-xs font-bold uppercase tracking-wider text-[#2C4033] flex items-center gap-1.5">
                 {mode === 'create_account' ? <UserPlus className="w-4 h-4 text-[#1E5E45]" /> : <LogIn className="w-4 h-4 text-[#1E5E45]" />}
@@ -310,35 +262,6 @@ export const PayloadModal: React.FC<PayloadModalProps> = ({
                 </button>
               </div>
             </form>
-          ) : (
-            /* Code Viewer */
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-semibold text-[#3E5247]">
-                  Frontend Payload Object:
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="flex items-center gap-1.5 text-xs text-[#1E5E45] hover:text-[#133D2D] font-medium bg-[#EBF3ED] px-2.5 py-1 rounded-md transition-colors cursor-pointer"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy JSON</span>
-                    </>
-                  )}
-                </button>
-              </div>
-              <pre className="bg-[#14201A] text-[#BEE3CE] p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-56 leading-relaxed border border-[#23382E]">
-                <code>{jsonString}</code>
-              </pre>
-            </div>
           )}
         </div>
 

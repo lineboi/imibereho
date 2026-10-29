@@ -100,12 +100,9 @@ export const StressTestChips: React.FC<StressTestChipsProps> = ({
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-[#1E5E45] shrink-0" />
             <span>
-              Backend Stress Impact: Stressed basket total <strong>{apiResult.stressedTotal.toLocaleString()} RWF</strong> (+{apiResult.monthlyIncrease.toLocaleString()} RWF/mo, runway impact: {apiResult.bufferImpactMonths} mo)
+              Stress Impact: Stressed basket total <strong>{apiResult.stressedTotal.toLocaleString()} RWF</strong> (+{apiResult.monthlyIncrease.toLocaleString()} RWF/mo, runway impact: {apiResult.bufferImpactMonths} mo)
             </span>
           </div>
-          <span className="text-[10px] bg-white text-[#1E5E45] px-2 py-0.5 rounded border border-[#CCE3D5] font-mono shrink-0">
-            POST /calculations/stress-test
-          </span>
         </div>
       )}
 

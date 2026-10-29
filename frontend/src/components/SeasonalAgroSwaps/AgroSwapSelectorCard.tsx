@@ -8,15 +8,19 @@ interface AgroSwapSelectorCardProps {
   selectedSwap: AgroSwapItem;
   onSelectSwap: (swap: AgroSwapItem) => void;
   language: Language;
+  swaps?: AgroSwapItem[];
 }
 
 export const AgroSwapSelectorCard: React.FC<AgroSwapSelectorCardProps> = ({
   selectedSwap,
   onSelectSwap,
   language,
+  swaps = AGRO_SWAPS_DATA,
 }) => {
   const t = AGRO_SWAPS_TRANSLATIONS[language];
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
+
+  const availableSwaps = swaps && swaps.length > 0 ? swaps : AGRO_SWAPS_DATA;
 
   const categories = [
     { id: 'all', label: t.filterAll },
@@ -25,7 +29,7 @@ export const AgroSwapSelectorCard: React.FC<AgroSwapSelectorCardProps> = ({
     { id: 'fuel', label: t.filterFuel },
   ];
 
-  const filteredSwaps = AGRO_SWAPS_DATA.filter((s) => {
+  const filteredSwaps = availableSwaps.filter((s) => {
     if (activeCategoryFilter === 'all') return true;
     if (activeCategoryFilter === 'staple') return s.category === 'staple' || s.category === 'tuber';
     if (activeCategoryFilter === 'protein') return s.category === 'protein' || s.category === 'vegetable';
@@ -33,16 +37,16 @@ export const AgroSwapSelectorCard: React.FC<AgroSwapSelectorCardProps> = ({
     return true;
   });
 
-  const currentIndex = AGRO_SWAPS_DATA.findIndex((s) => s.id === selectedSwap.id);
+  const currentIndex = availableSwaps.findIndex((s) => s.id === selectedSwap.id);
 
   const handleNext = () => {
-    const nextIndex = (currentIndex + 1) % AGRO_SWAPS_DATA.length;
-    onSelectSwap(AGRO_SWAPS_DATA[nextIndex]);
+    const nextIndex = (currentIndex + 1) % availableSwaps.length;
+    onSelectSwap(availableSwaps[nextIndex]);
   };
 
   const handlePrev = () => {
-    const prevIndex = (currentIndex - 1 + AGRO_SWAPS_DATA.length) % AGRO_SWAPS_DATA.length;
-    onSelectSwap(AGRO_SWAPS_DATA[prevIndex]);
+    const prevIndex = (currentIndex - 1 + availableSwaps.length) % availableSwaps.length;
+    onSelectSwap(availableSwaps[prevIndex]);
   };
 
   return (

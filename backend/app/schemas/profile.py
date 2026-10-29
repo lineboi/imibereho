@@ -28,7 +28,7 @@ from app.schemas.common import ApiModel, BodyModel
 Money = Annotated[StrictInt, Field(ge=0, le=MONEY_MAX)]
 UNSET_UNTIL_SET: Final = "Whole RWF; null until the household sets it"
 # Fields that always hold a value: `null` is refused, while leaving them out is fine.
-NON_NULLABLE: Final = ("district", "household_size", "monthly_income", "preferred_language")
+NON_NULLABLE: Final = ("district", "household_size", "monthly_income", "preferred_language", "role")
 
 
 class ProfileResponse(ApiModel):
@@ -39,6 +39,7 @@ class ProfileResponse(ApiModel):
     planned_essentials: int | None = Field(description=UNSET_UNTIL_SET)
     savings_buffer: int | None = Field(description=UNSET_UNTIL_SET)
     preferred_language: Literal["EN", "RW"]
+    role: Literal["citizen", "decision_maker"] = "citizen"
 
 
 class ProfilePatch(BodyModel):
@@ -52,6 +53,7 @@ class ProfilePatch(BodyModel):
     planned_essentials: Money | None = Field(default=None, description="null clears it")
     savings_buffer: Money | None = Field(default=None, description="null clears it")
     preferred_language: PreferredLanguage | None = None
+    role: Literal["citizen", "decision_maker"] | None = None
 
     @field_validator(*NON_NULLABLE, mode="before")
     @classmethod

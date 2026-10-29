@@ -6,7 +6,7 @@ concurrent PATCHes of different fields both survive (no read-modify-write window
 response is the row as committed. Order: token (401), body validation (422), district (404).
 """
 
-from typing import Annotated, Final, cast
+from typing import Annotated, Final, Literal, cast
 
 from fastapi import Depends
 from sqlalchemy import func, update
@@ -30,6 +30,7 @@ _COLUMNS: Final = {
     "planned_essentials": HouseholdAccount.planned_essentials,
     "savings_buffer": HouseholdAccount.savings_buffer,
     "preferred_language": HouseholdAccount.preferred_language,
+    "role": HouseholdAccount.role,
 }
 
 
@@ -47,6 +48,7 @@ def profile_of(account: CurrentAccount) -> ProfileResponse:
         planned_essentials=account.planned_essentials,
         savings_buffer=account.savings_buffer,
         preferred_language=_language(account.preferred_language),
+        role=cast(Literal["citizen", "decision_maker"], getattr(account, "role", "citizen") or "citizen"),
     )
 
 
@@ -59,6 +61,7 @@ def _profile_of_row(row: HouseholdAccount) -> ProfileResponse:
         planned_essentials=row.planned_essentials,
         savings_buffer=row.savings_buffer,
         preferred_language=_language(row.preferred_language),
+        role=cast(Literal["citizen", "decision_maker"], getattr(row, "role", "citizen") or "citizen"),
     )
 
 

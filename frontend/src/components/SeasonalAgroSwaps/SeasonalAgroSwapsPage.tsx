@@ -7,7 +7,7 @@ import {
   AGRO_SWAPS_TRANSLATIONS,
 } from '../../data/mockAgroSwapsData';
 import { DISTRICTS } from '../../data/mockData';
-import { fetchSeasonalSwaps, type SeasonalSwapApiResponse } from '../../services/api';
+import { fetchSeasonalSwaps, type SeasonalSwapApiItem } from '../../services/api';
 import { HeroMarketBanner } from './HeroMarketBanner';
 import { AgroSwapSelectorCard } from './AgroSwapSelectorCard';
 import { MonthlySavingsProjector } from './MonthlySavingsProjector';
@@ -38,12 +38,8 @@ export const SeasonalAgroSwapsPage: React.FC<SeasonalAgroSwapsPageProps> = ({
   const [selectedDistrict, setSelectedDistrict] = useState<string>(initialDistrict);
   const [selectedMonth, setSelectedMonth] = useState<string>('10'); // October (Season A active)
 
-  // Currently active swap item (defaults to staple: rice -> sweet potato from screenshot)
+  const [swapsList, setSwapsList] = useState<AgroSwapItem[]>(AGRO_SWAPS_DATA);
   const [selectedSwap, setSelectedSwap] = useState<AgroSwapItem>(AGRO_SWAPS_DATA[0]);
-
-  // Live Backend API state (GET /api/v1/seasonal-swaps)
-  const [, setBackendSwaps] = useState<SeasonalSwapApiResponse | null>(null);
-  const [isBackendLive, setIsBackendLive] = useState<boolean>(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -51,8 +47,34 @@ export const SeasonalAgroSwapsPage: React.FC<SeasonalAgroSwapsPageProps> = ({
     fetchSeasonalSwaps(selectedDistrict, m).then((data) => {
       if (!isMounted) return;
       if (data && data.items.length > 0) {
-        setBackendSwaps(data);
-        setIsBackendLive(true);
+        const mapped: AgroSwapItem[] = data.items.map((it: SeasonalSwapApiItem) => ({
+          id: it.id,
+          category: 'staple',
+          titleEn: it.title,
+          titleRw: it.title,
+          descriptionEn: it.description,
+          descriptionRw: it.description,
+          from: {
+            nameEn: it.from.name,
+            nameRw: it.from.name,
+            quantity: `${it.from.quantity} ${it.from.unit}`,
+            price: it.from.price,
+          },
+          to: {
+            nameEn: it.to.name,
+            nameRw: it.to.name,
+            quantity: `${it.to.quantity} ${it.to.unit}`,
+            price: it.to.price,
+          },
+          difference: it.difference,
+          savingsMonthlyEstimate: Math.round(it.difference * 3 * 4.33),
+          footnoteEn: it.footnote,
+          footnoteRw: it.footnote,
+          nutritionTagEn: 'Energy Staple Alternative',
+          nutritionTagRw: 'Ibiribwa bitanga imbaraga',
+        }));
+        setSwapsList(mapped);
+        setSelectedSwap(mapped[0]);
       }
     });
     return () => {
@@ -94,16 +116,6 @@ export const SeasonalAgroSwapsPage: React.FC<SeasonalAgroSwapsPageProps> = ({
           <p className="text-[13.5px] sm:text-[15px] text-[#4F6257] leading-relaxed max-w-2xl">
             {t.subheadline}
           </p>
-
-          {/* Live Backend Connection Indicator */}
-          {isBackendLive && (
-            <div className="flex items-center gap-1.5 mt-1 self-start">
-              <span className="bg-[#EBF5EE] text-[#1E5E45] text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-[#D0E5D8] flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#1E5E45] animate-pulse" />
-                <span>Backend: GET /api/v1/seasonal-swaps (Live 200 OK)</span>
-              </span>
-            </div>
-          )}
         </div>
 
         {/* District & Planning Month Dropdowns (Side-by-side matching mockup) */}
@@ -167,6 +179,7 @@ export const SeasonalAgroSwapsPage: React.FC<SeasonalAgroSwapsPageProps> = ({
           selectedSwap={selectedSwap}
           onSelectSwap={setSelectedSwap}
           language={language}
+          swaps={swapsList}
         />
 
         {/* Innovative Feature 1: Monthly Family Savings Projector & Equivalencies */}
