@@ -15,6 +15,27 @@ The platform bridges micro-level citizen financial management with macro-level p
 
 ---
 
+## Repository Structure
+
+```text
+imibereho/
+├── README.md          Project documentation
+├── app.py             Starts the API from the repository root
+├── requirements.txt   Python packages for the API
+├── backend/           FastAPI API, database migrations and tests
+├── frontend/          React web application
+├── data/              CSV copies of the data used (official and synthetic)
+├── demo/              Demonstration video
+├── student_cards/     Eligibility documents
+└── docs/
+    ├── architecture/  Project document and backend requirements
+    ├── api/           API contract and endpoint documents
+    ├── data/          Data evidence notes
+    └── development/   Plans, requirements and engineering audit
+```
+
+---
+
 ## Hardcoded Presentation & Testing Credentials
 
 For evaluators, juries, and presentation demonstrations, two hardcoded accounts are pre-seeded in the live PostgreSQL database:

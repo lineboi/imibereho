@@ -13,7 +13,7 @@ The two surveys have different populations, definitions and methods (see
 [EICV7 vs FinScope](#eicv7-vs-finscope-2024)). Don't present one as the other.
 
 > **Status: contract v0.3, agreed.** These endpoints are contract v0.3 (§10 of
-> `docs/architecture/api-contract-proposal.md`), agreed by the frontend teammate on
+> `docs/api/api-contract-proposal.md`), agreed by the frontend teammate on
 > 27 October 2026. That approval covers v0.3 only; v0.2 rev 2 still awaits sign-off. This guide
 > is the field-level specification for these endpoints. The `/api/v1` prefix, problem+json errors
 > and `X-Request-ID` behave exactly as in the contract.

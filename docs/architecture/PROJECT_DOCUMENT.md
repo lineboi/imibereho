@@ -143,7 +143,7 @@ Type: Lora for headings and figures, Inter for body and labels. Cards use radius
 
 ## Technical approach [Planned — awaiting approval of `IMPLEMENTATION_PLAN.md` Draft v2.3]
 
-The planned backend is a stateless, read-mostly API. It serves seeded synthetic reference data and runs the calculations, while citizen profiles, plans and expenses stay on the device [Decided, Q-02]. The authoritative contract is `docs/architecture/api-contract-proposal.md` v0.2 rev 2; this section only summarises it. All data routes live under `/api/v1` and are public; every data response carries `meta: { isIllustrative: true, methodologyVersion: "0.1" }`; errors follow RFC 9457 problem details. `/health` is the hosting health check; `/ready` reports database, migration and seed status.
+The planned backend is a stateless, read-mostly API. It serves seeded synthetic reference data and runs the calculations, while citizen profiles, plans and expenses stay on the device [Decided, Q-02]. The authoritative contract is `docs/api/api-contract-proposal.md` v0.2 rev 2; this section only summarises it. All data routes live under `/api/v1` and are public; every data response carries `meta: { isIllustrative: true, methodologyVersion: "0.1" }`; errors follow RFC 9457 problem details. `/health` is the hosting health check; `/ready` reports database, migration and seed status.
 
 **Local development (no Docker):** Python 3.12 with uv, against a local PostgreSQL server managed through pgAdmin 4, with separate development, test and migration-test databases. Render's native Python runtime hosts the demo. Docker is deferred to a later containerisation phase.
 

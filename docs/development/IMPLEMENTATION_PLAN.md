@@ -5,11 +5,11 @@
 > **Branch naming:** `feat/step-<id>-<name>` in lowercase. Each step is one branch, cut from the latest `main`, and merged by PR **before the next step starts**.
 > **Scope boundary:** backend work lives in `backend/`, `render.yaml`, `.gitattributes` and `.github/workflows/backend-ci.yml`. Docker files (`backend/Dockerfile`, `docker-compose.yml`) are added only in the deferred containerisation step C1 (§4.2). **`frontend/` is never touched.**
 > **Sources of truth, in order of precedence:**
-> 1. The decisions recorded in [open-questions.md](requirements/open-questions.md) ("Resolutions") and the defaults in §6 once this plan is approved.
-> 2. The Figma design, cited by node ID ([design-inventory.md](figma/design-inventory.md)).
-> 3. Formulas BR-01 to BR-16 ([backend-requirements.md](architecture/backend-requirements.md) §2).
-> 4. **The API contract v0.2 rev 2, [api-contract-proposal.md](architecture/api-contract-proposal.md): the single authoritative frontend–backend contract.** This plan cites contract sections and never redefines a field, a status code or a validation rule. If the plan and the contract disagree, the contract wins and the plan is corrected.
-> 5. FR-01 to FR-20 ([product-requirements.md](requirements/product-requirements.md)).
+> 1. The decisions recorded in [open-questions.md](open-questions.md) ("Resolutions") and the defaults in §6 once this plan is approved.
+> 2. The Figma design, cited by node ID ([design-inventory.md](../figma/design-inventory.md)).
+> 3. Formulas BR-01 to BR-16 ([backend-requirements.md](../architecture/backend-requirements.md) §2).
+> 4. **The API contract v0.2 rev 2, [api-contract-proposal.md](../api/api-contract-proposal.md): the single authoritative frontend–backend contract.** This plan cites contract sections and never redefines a field, a status code or a validation rule. If the plan and the contract disagree, the contract wins and the plan is corrected.
+> 5. FR-01 to FR-20 ([product-requirements.md](product-requirements.md)).
 >
 > **Format note:** `docs/reference/plan-format-example.md` is not in the repo (checked 2026-10-24), so the structure follows the task brief. There is no `CLAUDE.md`.
 > **Nature of this document:** everything below is a **planned requirement**. Nothing in it (tests, CI, guards, serialisation) has been implemented or verified in code yet.

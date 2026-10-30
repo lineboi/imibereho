@@ -1,0 +1,2 @@
+methodology_version,id,district_code,month,title,description,footnote,from_name,from_quantity,from_unit,from_price,to_name,to_quantity,to_unit,to_price,sort_order
+0.1,rice-to-sweet-potato,,10,Try a different staple,"For one household meal, consider sweet potatoes instead of rice. Pair with beans and leafy vegetables.","Different quantities; not a nutritional equivalent. Prices are invented, not market observations.",Rice,1,kg,2000,Sweet potatoes,2,kg,1600,1
