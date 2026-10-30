@@ -4,9 +4,9 @@ FastAPI service for the Imibereho demo: a household financial-resilience tool fo
 **Every figure it serves is synthetic, illustrative data under concept methodology v0.1, not
 official statistics.** Data responses carry `meta.isIllustrative: true`.
 
-- **Contract:** [`docs/architecture/api-contract-proposal.md`](../docs/architecture/api-contract-proposal.md)
+- **Contract:** [`docs/api/api-contract-proposal.md`](../docs/api/api-contract-proposal.md)
   (v0.2 rev 2). It is authoritative for endpoints, fields and errors.
-- **Plan:** [`docs/IMPLEMENTATION_PLAN.md`](../docs/IMPLEMENTATION_PLAN.md). It covers the guards,
+- **Plan:** [`docs/development/IMPLEMENTATION_PLAN.md`](../docs/development/IMPLEMENTATION_PLAN.md). It covers the guards,
   database lifecycle and layering.
 - **Formulas:** BR-01 to BR-16 in [`docs/architecture/backend-requirements.md`](../docs/architecture/backend-requirements.md) §2.
 
@@ -36,7 +36,7 @@ Stack: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (typed), Alembic, Postgre
 | `POST /api/v1/calculations/policy-scenario` | §5 | Stateless |
 | `GET /api/v1/dashboard/filters`, `GET /api/v1/dashboard/overview` | §5 | `geography=all` only ([PD] Q-14) |
 | `POST /api/v1/calculations/budget-comparison` | §6 (optional) | See open item below |
-| `GET /api/v1/nisr/sources`, `GET /api/v1/nisr/financial-inclusion/national`, `GET /api/v1/nisr/financial-inclusion/districts` | **v0.3** §10 (agreed 2026-10-27) | Official FinScope 2024 statistics with provenance; `isIllustrative: false`. See [`docs/api/nisr-financial-inclusion.md`](docs/api/nisr-financial-inclusion.md) |
+| `GET /api/v1/nisr/sources`, `GET /api/v1/nisr/financial-inclusion/national`, `GET /api/v1/nisr/financial-inclusion/districts` | **v0.3** §10 (agreed 2026-10-27) | Official FinScope 2024 statistics with provenance; `isIllustrative: false`. See [`docs/api/nisr-financial-inclusion.md`](../docs/api/nisr-financial-inclusion.md) |
 | `GET /api/v1/agro/harvest-calendar` | **v0.4** §11.5 (frontend sign-off pending) | Official NISR SAS 2025 season calendar and main crops (`isIllustrative: false`; source `sas-2025`) |
 | `GET /api/v1/nutrition/indyo-yuzuye`, `GET /api/v1/market/shopping-checklist` | **v0.4** §11.5 (frontend sign-off pending) | The PDF's example content, owner-approved as illustrative (`meta.provenance`, §11.7); the checklist is the PDF's Gasabo list for size 4, modelled for other districts (BR-28) and sizes (BR-24) with `valueBasis`; its total is the sum of the items (v0.8) |
 | `POST /api/v1/calculations/stress-test`, `GET /api/v1/calculations/district-comparison`, `GET /api/v1/districts/{code}/basket-details` | **v0.4** §11.3 (frontend sign-off pending) | Illustrative: the PDF's Gasabo and Musanze baskets, the shared benchmark elsewhere (BR-21 to BR-24); staple prices for Gasabo, modelled elsewhere by BR-28 (v0.8); market hub for Gasabo only, else `null` |

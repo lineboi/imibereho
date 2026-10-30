@@ -1,4 +1,4 @@
-"""Export every seed dataset to CSV in the repository's `data/` folder, one folder per dataset.
+"""Export every seed dataset to CSV in the repository's `data/` folder, one file per table.
 
     uv run python scripts/export_data.py
 
@@ -28,8 +28,10 @@ def main() -> int:
         for part in dataset.tables:
             if not part.rows:
                 continue
-            path = OUTPUT_DIR / dataset.name / f"{part.table.name}.csv"
-            path.parent.mkdir(parents=True, exist_ok=True)
+            # The dataset name prefix keeps tables that several datasets share apart.
+            table = part.table.name
+            stem = table if table.startswith(dataset.name) else f"{dataset.name}_{table}"
+            path = OUTPUT_DIR / f"{stem}.csv"
             with path.open("w", encoding="utf-8", newline="") as file:
                 writer = csv.DictWriter(file, fieldnames=part.columns, lineterminator="\n")
                 writer.writeheader()

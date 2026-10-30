@@ -1,12 +1,12 @@
 # Backend Requirements — Imibereho (preliminary)
 
-> Derived from the Figma design ([inventory](../figma/design-inventory.md), [product requirements](../requirements/product-requirements.md)).
-> Evidence tags: **[E]** explicit in design · **[I]** inferred · **[U]** unknown (see `Q-xx` in [open-questions.md](../requirements/open-questions.md)).
+> Derived from the Figma design ([inventory](../figma/design-inventory.md), [product requirements](../development/product-requirements.md)).
+> Evidence tags: **[E]** explicit in design · **[I]** inferred · **[U]** unknown (see `Q-xx` in [open-questions.md](../development/open-questions.md)).
 > No backend code or database exists in the repo yet (it holds only the Vite + React + TS template in `frontend/`).
 > **Resolved 2026-10-24:** Q-01 (demo on synthetic data, production quality), Q-02 (Option A), Q-04 (no decision-maker login), Q-15 (Python 3.12 / FastAPI / PostgreSQL: 18 local, 16 CI and deployment, provisional pending compatibility verification / SQLAlchemy 2.0 / Alembic / Pydantic v2 / uv; local PostgreSQL managed through pgAdmin 4 for development; Render for hosting; Docker deferred to a later containerisation phase). Rows marked **(Option B only)** or "Not built" below are out of scope for v1 and kept only for traceability.
 > **Changed 2026-10-28 (implementation at the project owner's direction, not a policy approval):** Q-02 for one table: citizen register/login accounts in `household_accounts` (Option C; contract §11.8). Q-04 (decision-maker login) is unchanged. Q-13 (retention, deletion, consent) and Q-34 (the "does not collect or save your details" copy) are open.
-> **Superseded sections:** §4 (tables), §5 (API resources) and §6 (validation) were written before the API contract existed. They are kept for history and each is marked **SUPERSEDED** with a pointer. For endpoints, parameters, fields, status codes and validation, **only [api-contract-proposal.md](./api-contract-proposal.md) is authoritative**. For tables, see `IMPLEMENTATION_PLAN.md` §3–§4. §2 (BR-01 to BR-16) remains authoritative for formulas.
-> The authoritative API contract is [api-contract-proposal.md](./api-contract-proposal.md) (contract v0.2 rev 2). The build sequence is [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md).
+> **Superseded sections:** §4 (tables), §5 (API resources) and §6 (validation) were written before the API contract existed. They are kept for history and each is marked **SUPERSEDED** with a pointer. For endpoints, parameters, fields, status codes and validation, **only [api-contract-proposal.md](../api/api-contract-proposal.md) is authoritative**. For tables, see `IMPLEMENTATION_PLAN.md` §3–§4. §2 (BR-01 to BR-16) remains authoritative for formulas.
+> The authoritative API contract is [api-contract-proposal.md](../api/api-contract-proposal.md) (contract v0.2 rev 2). The build sequence is [IMPLEMENTATION_PLAN.md](../development/IMPLEMENTATION_PLAN.md).
 
 ## 1. What the design implies the backend actually does
 
@@ -147,7 +147,7 @@ Seeding: all demo values in the design should become a **seed dataset** so the f
 
 ## 5. API resources — SUPERSEDED
 
-> **SUPERSEDED by [api-contract-proposal.md](./api-contract-proposal.md) (contract v0.2 rev 2), the single authoritative definition of endpoints, parameters, fields and errors.** The table below is only an index to the contract. It deliberately carries no parameters or fields, so it cannot contradict the contract.
+> **SUPERSEDED by [api-contract-proposal.md](../api/api-contract-proposal.md) (contract v0.2 rev 2), the single authoritative definition of endpoints, parameters, fields and errors.** The table below is only an index to the contract. It deliberately carries no parameters or fields, so it cannot contradict the contract.
 
 | Resource (under `/api/v1`) | Methods | Tier (contract) | Screens | Evidence |
 |---|---|---|---|---|
@@ -171,7 +171,7 @@ No search, sorting UI or pagination is designed. Lists are bounded (30 districts
 
 ## 6. Validation rules — SUPERSEDED
 
-> **SUPERSEDED by the per-endpoint field tables and §1.2 (number parsing) of [api-contract-proposal.md](./api-contract-proposal.md).** The bounds there are [PD] Q-20: household size 1–20; money 0–100,000,000; percentages 0–100; duration 1–24; eligible households 0–3,000. The original table is kept for history only; the Q-xx reference for percentage options is corrected to Q-20. The expense rows apply only to device-held data (Q-02 Option A).
+> **SUPERSEDED by the per-endpoint field tables and §1.2 (number parsing) of [api-contract-proposal.md](../api/api-contract-proposal.md).** The bounds there are [PD] Q-20: household size 1–20; money 0–100,000,000; percentages 0–100; duration 1–24; eligible households 0–3,000. The original table is kept for history only; the Q-xx reference for percentage options is corrected to Q-20. The expense rows apply only to device-held data (Q-02 Option A).
 
 | Field | Rule | Evidence |
 |---|---|---|
@@ -218,7 +218,7 @@ No evidence exists for: file uploads (images are static design assets), payments
 
 ## 10. Suggested implementation order
 
-1. ~~Decide Q-01, Q-02, Q-04, Q-15.~~ **Done 2026-10-24.** The order below is superseded by the corrected sequence in [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md) §1 and §5.
+1. ~~Decide Q-01, Q-02, Q-04, Q-15.~~ **Done 2026-10-24.** The order below is superseded by the corrected sequence in [IMPLEMENTATION_PLAN.md](../development/IMPLEMENTATION_PLAN.md) §1 and §5.
 2. **Project skeleton**: health endpoint, config, error format, CORS, OpenAPI generation, CI.
 3. **Reference data + seed** reproducing every demo value: districts, categories, benchmarks, periods, groups.
 4. **Calculation module** (pure functions, BR-01 to BR-16) with unit tests pinned to the design numbers (30,000 / 144,000 / 6,000 / 18,000 / 42,000 / 10 / 18m / 46 / 83.3%).

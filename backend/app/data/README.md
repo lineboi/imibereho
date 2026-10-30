@@ -1,7 +1,7 @@
 # Seed data
 
 **Official published statistics**, served only by `/api/v1/nisr/*` with `isIllustrative: false`
-(see `backend/docs/api/nisr-financial-inclusion.md`):
+(see `docs/api/nisr-financial-inclusion.md`):
 - `finscope_2024.py`: values transcribed from the FinScope Rwanda 2024 report (Access to Finance
   Rwanda), each with its page and figure.
 - `eicv7_2023_24.py`: NISR's EICV7 2023/24 annex Tables A9.23 (poverty) and A3.7 (health

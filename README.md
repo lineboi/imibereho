@@ -21,13 +21,17 @@ The platform bridges micro-level citizen financial management with macro-level p
 imibereho/
 ├── README.md          Project documentation
 ├── app.py             Starts the API from the repository root
+├── requirements.txt   Python packages for the API
 ├── backend/           FastAPI API, database migrations and tests
 ├── frontend/          React web application
 ├── data/              CSV copies of the data used (official and synthetic)
-├── demo/              Link to the demonstration video
-├── requirements.txt   Python packages for the API
+├── demo/              Demonstration video
 ├── student_cards/     Eligibility documents
-└── docs/              Project, architecture and engineering documents
+└── docs/
+    ├── architecture/  Project document and backend requirements
+    ├── api/           API contract and endpoint documents
+    ├── data/          Data evidence notes
+    └── development/   Plans, requirements and engineering audit
 ```
 
 ---

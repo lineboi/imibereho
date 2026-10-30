@@ -53,12 +53,12 @@ The route registry, privacy, layering, migration and seed checks are in the fina
 
 ## 1. Executive summary
 
-- **Constraints kept [V].** Q-02 (no server-side storage of citizen data) and Q-04 (no login) stay resolved as recorded in `docs/requirements/open-questions.md` and contract §1 ("Auth: None", "Citizen data: never stored"). `tests/security/test_privacy.py` keeps enforcing them. This plan builds nothing that authenticates users or stores citizen data.
+- **Constraints kept [V].** Q-02 (no server-side storage of citizen data) and Q-04 (no login) stay resolved as recorded in `docs/development/open-questions.md` and contract §1 ("Auth: None", "Citizen data: never stored"). `tests/security/test_privacy.py` keeps enforcing them. This plan builds nothing that authenticates users or stores citizen data.
 - **[V] None of the 21 endpoints exists.** The route registry (`create_app("dev")`, walked with `fastapi.routing.iter_route_contexts`) serves 16 routes under `/api/v1`, plus `/health` and `/ready`.
 - **Deadline scope [R], in this order:**
   1. **Phase 1:** #15 `GET /api/v1/shocks/catalog` and #16 `POST /api/v1/calculations/resilience-simulation`. Blocked on D3 and D5.
   2. **Phase 2:** #18 `POST /api/v1/calculations/agro-savings-projection`. Blocked on D4 and D5.
-  3. **Optional:** #14 `POST /api/v1/calculations/stress-test`, only if time remains before the planned code freeze (Wed 28 Oct 16:00, `docs/PROJECT_DOCUMENT.md`) **and** D3b is approved.
+  3. **Optional:** #14 `POST /api/v1/calculations/stress-test`, only if time remains before the planned code freeze (Wed 28 Oct 16:00, `docs/architecture/PROJECT_DOCUMENT.md`) **and** D3b is approved.
 - **Deferred:**
   - #12, #13 and #19–#21 until their data or methodology prerequisites are met (D2, D7).
   - #1–#11 and #17, the accounts and persistence APIs, unless the product owner formally reopens Q-02/Q-04 (D1).
@@ -331,7 +331,7 @@ flowchart TD
 An endpoint is complete only when every box is ticked **with recorded evidence**: command output or test names in the PR description. Proposed test names are given; the files don't exist yet.
 
 ### Common gates (run from `backend/`)
-- [ ] D3/D4/D5 approval recorded, and a v0.4 row added to the contract's §9 change log (`docs/architecture/api-contract-proposal.md`).
+- [ ] D3/D4/D5 approval recorded, and a v0.4 row added to the contract's §9 change log (`docs/api/api-contract-proposal.md`).
 - [ ] `uv run ruff check .` and `uv run ruff format --check .` clean.
 - [ ] `uv run mypy app tests alembic scripts` clean (strict).
 - [ ] `uv run pytest --cov=app --cov-fail-under=85`: all pass. Only the 2 CI-only superuser skips are allowed.
