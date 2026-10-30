@@ -1,0 +1,6 @@
+code,name_en,name_rw,icon,sort_order
+food,Food,,shopping-basket,1
+housing,Housing,,,2
+transport,Transport,,bus,3
+utilities,Utilities,,zap,4
+other_essentials,Other essentials,,,5
