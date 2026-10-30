@@ -1,7 +1,5 @@
 # Demo
 
-Watch the Imibereho demonstration video on Google Drive:
+`demo.mp4` shows Imibereho working (5 minutes). It is a smaller copy of the original recording.
 
-[Open the demonstration video](https://drive.google.com/file/d/1jQ4Xwip7Mw0HB2XjH5yBMmI3UThXDSVQ/view?usp=sharing)
-
-The video is hosted there because GitHub rejects files over 100 MB.
+The full-quality video is on [Google Drive](https://drive.google.com/file/d/1jQ4Xwip7Mw0HB2XjH5yBMmI3UThXDSVQ/view?usp=sharing).
